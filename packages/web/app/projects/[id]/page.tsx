@@ -2,7 +2,7 @@ import { gql } from "@apollo/client";
 import type { AppState } from "@excalidraw/excalidraw/types";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import Project from "@/components/projects/Project";
+import ProjectOT from "@/components/projects/ProjectOT";
 import { getServerApollo } from "@/lib/serverApollo";
 
 interface ProjectPageProps {
@@ -44,7 +44,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     parsedAppState.collaborators = new Map()
   }
 
-  return <Project projectID={id} initialAppState={parsedAppState} />;
+  return <ProjectOT projectID={id} initialAppState={parsedAppState} />;
 }
 
 export async function generateMetadata({ params }: ProjectPageProps) {

@@ -37,7 +37,7 @@ export default function App() {
           <ProjectsList
             projects={data.projectsPersonalByUser}
             onCreateProject={handleCreateProject}
-            personal={true}
+            personal={false}
           />
         )}
       </div>

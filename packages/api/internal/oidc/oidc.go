@@ -29,8 +29,8 @@ type Claims struct {
 // Tokens carry the browser-facing issuer, so we fetch OIDC discovery from the
 // internal URL but validate the issuer claim against the public URL.
 func Init() error {
-	keycloakURL := os.Getenv("KEYCLOAK_URL")             // internal: http://keycloak:8080
-	publicURL := os.Getenv("KEYCLOAK_PUBLIC_URL")         // browser-facing: http://localhost:8080
+	keycloakURL := os.Getenv("KEYCLOAK_URL")      // internal: http://keycloak:8080
+	publicURL := os.Getenv("KEYCLOAK_PUBLIC_URL") // browser-facing: http://localhost:8080
 	realm := os.Getenv("KEYCLOAK_REALM")
 	clientID := os.Getenv("KEYCLOAK_CLIENT_ID")
 
@@ -51,8 +51,8 @@ func Init() error {
 	}
 
 	Verifier = Provider.Verifier(&gooidc.Config{
-		ClientID:                clientID,
-		SkipClientIDCheck:       true, // Keycloak access tokens use "account" as audience, not client ID
+		ClientID:          clientID,
+		SkipClientIDCheck: true, // Keycloak access tokens use "account" as audience, not client ID
 	})
 
 	return nil

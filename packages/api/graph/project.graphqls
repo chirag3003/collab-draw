@@ -22,12 +22,62 @@ input NewProject {
     personal: Boolean!
 }
 
+enum OpType { ADD, UPDATE, DELETE }
+
+type Operation {
+    opID: ID!
+    seq: Int!
+    clientSeq: Int!
+    socketID: ID!
+    type: OpType!
+    elementID: String!
+    elementVer: Int!
+    baseSeq: Int!
+    data: String
+    timestamp: String!
+}
+
+input OperationInput {
+    clientSeq: Int!
+    type: OpType!
+    elementID: String!
+    elementVer: Int!
+    baseSeq: Int!
+    data: String
+}
+
+type ApplyOpsResult {
+    ack: Boolean!
+    serverSeq: Int!
+    rejected: [RejectedOp!]
+}
+
+type RejectedOp {
+    clientSeq: Int!
+    elementID: String!
+    reason: String!
+}
+
+type ProjectOpsSubscription {
+    ops: [Operation!]!
+    socketID: ID!
+}
+
+type ProjectSnapshot {
+    elements: String!
+    seq: Int!
+    timestamp: String!
+}
+
 extend type Query {
     projects: [Project!]!
     project(id: ID!): Project
     projectsByUser(userId: ID!): [Project!]!
     projectsPersonalByUser(userId: ID!): [Project!]!
     projectsByWorkspace(workspaceId: ID!): [Project!]!
+    opsSince(projectID: ID!, sinceSeq: Int!, limit: Int): [Operation!]!
+    projectHistory(projectID: ID!, fromSeq: Int!, toSeq: Int!): [Operation!]!
+    projectSnapshotAt(projectID: ID!, seq: Int!): ProjectSnapshot!
 }
 
 extend type Mutation {
@@ -35,8 +85,10 @@ extend type Mutation {
     updateProject(id: ID!, elements: String!, socketID: ID!): Boolean!
     deleteProject(id: ID!): Boolean!
     updateProjectMetadata(id: ID!, name: String!, description: String!): Boolean!
+    applyOps(projectID: ID!, socketID: ID!, ops: [OperationInput!]!): ApplyOpsResult!
 }
 
 extend type Subscription{
     project(id: ID!): ProjectSubscription!
+    projectOps(id: ID!): ProjectOpsSubscription!
 }

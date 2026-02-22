@@ -13,7 +13,9 @@ services:
     environment:
       - KC_BOOTSTRAP_ADMIN_USERNAME=${KEYCLOAK_ADMIN:-admin}
       - KC_BOOTSTRAP_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      - KC_HOSTNAME=http://localhost:8080
       - KC_HOSTNAME_STRICT=false
+      - KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true
     ports:
       - "8080:8080"
     volumes:
@@ -84,4 +86,3 @@ services:
 volumes:
   mongo-data:
   keycloak-data:
-  
