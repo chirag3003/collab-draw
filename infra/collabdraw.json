@@ -1,0 +1,91 @@
+{
+  "realm": "collab-draw",
+  "enabled": true,
+  "displayName": "Collab Draw (Local Dev)",
+  "registrationAllowed": true,
+  "resetPasswordAllowed": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "sslRequired": "none",
+  "clients": [
+    {
+      "clientId": "collab-draw",
+      "name": "Collab Draw",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "collab-draw-dev-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "http://localhost:3080/api/auth/callback",
+        "http://localhost:3080/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3080"
+      ]
+    },
+    {
+      "clientId": "collab-draw-api",
+      "name": "Collab Draw API",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "collab-draw-api-dev-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false
+    }
+  ],
+  "roles": {
+    "client": {
+      "collab-draw-api": [
+        {
+          "name": "uma_protection",
+          "composite": false,
+          "clientRole": true
+        }
+      ]
+    }
+  },
+  "users": [
+    {
+      "username": "service-account-collab-draw-api",
+      "enabled": true,
+      "serviceAccountClientId": "collab-draw-api",
+      "clientRoles": {
+        "realm-management": ["manage-users", "manage-authorization", "manage-realm"]
+      }
+    },
+    {
+      "username": "alice",
+      "enabled": true,
+      "email": "alice@collabdraw.dev",
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Smith",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "alice",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "bob",
+      "enabled": true,
+      "email": "bob@collabdraw.dev",
+      "firstName": "Bob",
+      "lastName": "Johnson",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "bob",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

@@ -53,6 +53,9 @@ func (r *projectRepository) UpdateProject(context context.Context, id string, el
 			"elements":   elements,
 			"updated_at": time.Now().Format(time.RFC3339),
 		},
+		"$inc": bson.M{
+			"head_seq": 1,
+		},
 	}
 	res, err := r.project.UpdateOne(context, bson.M{"_id": ID,
 		"$or": bson.A{

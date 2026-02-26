@@ -14,7 +14,7 @@ import CreateProjectDialog from "./CreateProjectDialog";
 import ShareWorkspaceDialog from "./ShareWorkspaceDialog";
 import ProjectSettingsDialog from "./ProjectSettingsDialog";
 import WorkspaceSettingsDialog from "./WorkspaceSettingsDialog";
-import { useUser } from "@clerk/nextjs";
+import { useAuth } from "@/lib/auth/context";
 
 interface Project {
   id: string;
@@ -64,7 +64,7 @@ export default function ProjectsList({
   members,
   owned = true,
 }: WorkspaceListProps) {
-  const { user } = useUser();
+  const { user } = useAuth();
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString("en-US", {
@@ -99,7 +99,7 @@ export default function ProjectsList({
       <div className="header flex justify-between items-start mb-8">
         <div>
           <h1 className="text-3xl font-bold text-foreground mb-2">
-            {details?.title || (user ? `Welcome back, ${user.firstName}` : "")}
+            {details?.title || (user ? `Welcome back, ${user.name?.split(" ")[0]}` : "")}
           </h1>
           <p className="text-muted-foreground">
             {details?.description ||

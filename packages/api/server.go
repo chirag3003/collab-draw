@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
@@ -16,9 +17,8 @@ import (
 	"github.com/chirag3003/collab-draw-backend/graph/resolvers"
 	"github.com/chirag3003/collab-draw-backend/internal/auth"
 	"github.com/chirag3003/collab-draw-backend/internal/db"
+	"github.com/chirag3003/collab-draw-backend/internal/oidc"
 	"github.com/chirag3003/collab-draw-backend/internal/repository"
-	"github.com/clerk/clerk-sdk-go/v2"
-	clerkHttp "github.com/clerk/clerk-sdk-go/v2/http"
 	"github.com/go-chi/chi"
 	"github.com/gorilla/websocket"
 	"github.com/joho/godotenv"
@@ -29,10 +29,9 @@ import (
 const defaultPort = "8080"
 
 func main() {
-	//Loading Env Variables
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Fatalf("Error loading .env file")
+	// Loading Env Variables (non-fatal in Docker where env is set directly)
+	if err := godotenv.Load(".env"); err != nil {
+		log.Printf("Warning: .env file not found, using environment variables")
 	}
 
 	port := os.Getenv("PORT")
@@ -46,8 +45,19 @@ func main() {
 	// Setting up repositories
 	repo := repository.Setup()
 
-	//setting up Clerk
-	clerk.SetKey(os.Getenv("CLERK_SECRET_KEY"))
+	// Initialize OIDC with retry for Keycloak startup
+	for i := 0; i < 30; i++ {
+		if err := oidc.Init(); err != nil {
+			log.Printf("OIDC init attempt %d failed: %v, retrying in 2s...", i+1, err)
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		log.Println("OIDC provider initialized successfully")
+		break
+	}
+	if oidc.Verifier == nil {
+		log.Fatal("Failed to initialize OIDC provider after retries")
+	}
 
 	srv := handler.New(graph.NewExecutableSchema(graph.Config{Resolvers: resolvers.NewResolver(repo)}))
 
@@ -57,61 +67,34 @@ func main() {
 			// Extract authorization from connection params
 			authHeader := initPayload.Authorization()
 			if authHeader == "" {
-				// Try to get from other params
-				if auth, ok := initPayload["authorization"].(string); ok {
-					authHeader = auth
+				if a, ok := initPayload["authorization"].(string); ok {
+					authHeader = a
 				}
 			}
 
-			//log.Printf("WebSocket InitFunc - Auth header: %v", authHeader != "")
-
-			// If we have authorization, validate it
 			if authHeader != "" {
-				// Create a fake request to validate the token
-				req, _ := http.NewRequest("GET", "/", nil)
-				req.Header.Set("Authorization", authHeader)
+				tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 
-				// Use Clerk to verify the session
-				clerkClient := clerkHttp.RequireHeaderAuthorization()
-				var validatedCtx context.Context
-				var authOk bool
-
-				// Create a test handler to capture the context
-				testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					claims, ok := clerk.SessionClaimsFromContext(r.Context())
-					if ok {
-						validatedCtx = context.WithValue(ctx, auth.UserContextKey, claims)
-						authOk = true
-						//log.Printf("WebSocket auth successful for user: %v", claims.Subject)
+				idToken, err := oidc.Verifier.Verify(ctx, tokenStr)
+				if err == nil {
+					var claims oidc.Claims
+					if err := idToken.Claims(&claims); err == nil {
+						validatedCtx := context.WithValue(ctx, auth.UserContextKey, &claims)
+						return validatedCtx, &initPayload, nil
 					}
-				})
-
-				// Wrap with Clerk validation
-				clerkClient(testHandler).ServeHTTP(nil, req.WithContext(ctx))
-
-				if authOk {
-					return validatedCtx, &initPayload, nil
 				}
+				log.Printf("WebSocket token verification failed: %v", err)
 			}
 
 			log.Printf("WebSocket auth failed or no auth provided")
 			return ctx, &initPayload, nil
 		},
-
-		// The `github.com/gorilla/websocket.Upgrader` is used to handle the transition
-		// from an HTTP connection to a WebSocket connection. Among other options, here
-		// you must check the origin of the request to prevent cross-site request forgery
-		// attacks.
 		Upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
-				// Allow exact match on host.
 				origin := r.Header.Get("Origin")
 				if origin == "" || origin == r.Header.Get("Host") {
 					return true
 				}
-
-				// Match on allow-listed origins.
-				// return slices.Contains([]string{":3000", "https://ui.mysite.com"}, origin)
 				return true
 			},
 		},
@@ -138,13 +121,10 @@ func main() {
 
 	// Custom middleware that allows WebSocket upgrades to bypass auth middleware
 	router.Handle("/query", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check if this is a WebSocket upgrade request
 		if r.Header.Get("Upgrade") == "websocket" {
-			//log.Printf("WebSocket upgrade request detected, bypassing auth middleware")
 			srv.ServeHTTP(w, r)
 			return
 		}
-		// For regular HTTP requests, use auth middleware
 		auth.Middleware()(srv).ServeHTTP(w, r)
 	}))
 

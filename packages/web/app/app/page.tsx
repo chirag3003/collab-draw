@@ -1,6 +1,6 @@
 "use client";
 
-import { useUser } from "@clerk/nextjs";
+import { useAuth } from "@/lib/auth/context";
 import { useEffect } from "react";
 import ProjectsList from "@/components/app/ProjectsList";
 import { useCreateProject, usePersonalProjects } from "@/lib/hooks/project";
@@ -8,7 +8,7 @@ import { useCreateProject, usePersonalProjects } from "@/lib/hooks/project";
 export default function App() {
   const [getProjects, { data }] = usePersonalProjects();
   const [createProject] = useCreateProject();
-  const { user } = useUser();
+  const { user } = useAuth();
 
   const handleCreateProject = async (data: {
     title: string;
@@ -37,7 +37,7 @@ export default function App() {
           <ProjectsList
             projects={data.projectsPersonalByUser}
             onCreateProject={handleCreateProject}
-            personal={true}
+            personal={false}
           />
         )}
       </div>

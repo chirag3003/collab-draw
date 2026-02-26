@@ -148,3 +148,111 @@ export function useUpdateProjectMetadata() {
     refetchQueries: ["GetProjectByOwner", "GetProjectByWorkspace"],
   });
 }
+
+// --- OT Hooks ---
+
+export const useApplyOps = () => {
+  const MUTATION = gql`
+    mutation ApplyOps($projectID: ID!, $socketID: ID!, $ops: [OperationInput!]!) {
+      applyOps(projectID: $projectID, socketID: $socketID, ops: $ops) {
+        ack
+        serverSeq
+        rejected {
+          clientSeq
+          elementID
+          reason
+        }
+      }
+    }
+  `;
+  return useMutation<{
+    applyOps: {
+      ack: boolean;
+      serverSeq: number;
+      rejected: Array<{
+        clientSeq: number;
+        elementID: string;
+        reason: string;
+      }> | null;
+    };
+  }>(MUTATION);
+};
+
+export const useProjectOpsSubscription = (projectID: string, skip: boolean) => {
+  const SUBSCRIPTION = gql`
+    subscription ProjectOps($ID: ID!) {
+      projectOps(id: $ID) {
+        ops {
+          opID
+          seq
+          clientSeq
+          socketID
+          type
+          elementID
+          elementVer
+          baseSeq
+          data
+          timestamp
+        }
+        socketID
+      }
+    }
+  `;
+  return useSubscription<{
+    projectOps: {
+      ops: Array<{
+        opID: string;
+        seq: number;
+        clientSeq: number;
+        socketID: string;
+        type: "ADD" | "UPDATE" | "DELETE";
+        elementID: string;
+        elementVer: number;
+        baseSeq: number;
+        data: string | null;
+        timestamp: string;
+      }>;
+      socketID: string;
+    };
+  }>(SUBSCRIPTION, {
+    variables: { ID: projectID },
+    skip,
+    shouldResubscribe: true,
+    onError: (error) => {
+      console.error("ProjectOps subscription error:", error);
+    },
+  });
+};
+
+export const useOpsSince = () => {
+  const QUERY = gql`
+    query OpsSince($projectID: ID!, $sinceSeq: Int!, $limit: Int) {
+      opsSince(projectID: $projectID, sinceSeq: $sinceSeq, limit: $limit) {
+        opID
+        seq
+        clientSeq
+        socketID
+        type
+        elementID
+        elementVer
+        baseSeq
+        data
+        timestamp
+      }
+    }
+  `;
+  return useLazyQuery<{
+    opsSince: Array<{
+      opID: string;
+      seq: number;
+      clientSeq: number;
+      socketID: string;
+      type: "ADD" | "UPDATE" | "DELETE";
+      elementID: string;
+      elementVer: number;
+      baseSeq: number;
+      data: string | null;
+      timestamp: string;
+    }>;
+  }>(QUERY);
+};

@@ -8,10 +8,12 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/chirag3003/collab-draw-backend/graph/model"
 	"github.com/chirag3003/collab-draw-backend/internal/auth"
 	"github.com/chirag3003/collab-draw-backend/internal/models"
+	"github.com/chirag3003/collab-draw-backend/internal/repository"
 )
 
 // CreateProject is the resolver for the createProject field.
@@ -20,7 +22,7 @@ func (r *mutationResolver) CreateProject(ctx context.Context, input model.NewPro
 	project := &models.Project{
 		Name:     input.Name,
 		Elements: "",
-		Owner:    authContext.Subject,
+		Owner:    authContext.Sub,
 		Personal: input.Personal,
 	}
 	if input.Description != nil {
@@ -28,14 +30,14 @@ func (r *mutationResolver) CreateProject(ctx context.Context, input model.NewPro
 	}
 
 	if input.Workspace != nil {
-		workspace, err := r.Repo.Workspace.GetWorkspaceByID(ctx, *input.Workspace, authContext.Subject)
+		workspace, err := r.Repo.Workspace.GetWorkspaceByID(ctx, *input.Workspace, authContext.Sub)
 		if err != nil {
 			return "", fmt.Errorf("failed to fetch workspace: %v", err)
 		}
 		if workspace == nil {
 			return "", fmt.Errorf("workspace not found")
 		}
-		if workspace.Owner != authContext.Subject {
+		if workspace.Owner != authContext.Sub {
 			return "", fmt.Errorf("only workspace owner can create project in it")
 		}
 		project.Workspace = &workspace.ID
@@ -54,7 +56,7 @@ func (r *mutationResolver) CreateProject(ctx context.Context, input model.NewPro
 func (r *mutationResolver) UpdateProject(ctx context.Context, id string, elements string, socketID string) (bool, error) {
 	authContext := auth.ForContext(ctx)
 	fmt.Printf("Update Request from %s\n", socketID)
-	err := r.Repo.Project.UpdateProject(ctx, id, elements, authContext.Subject)
+	err := r.Repo.Project.UpdateProject(ctx, id, elements, authContext.Sub)
 	if err != nil {
 		return false, fmt.Errorf("failed to update project: %v", err)
 	}
@@ -70,7 +72,7 @@ func (r *mutationResolver) UpdateProject(ctx context.Context, id string, element
 // DeleteProject is the resolver for the deleteProject field.
 func (r *mutationResolver) DeleteProject(ctx context.Context, id string) (bool, error) {
 	authContext := auth.ForContext(ctx)
-	success, err := r.Repo.Project.DeleteProject(ctx, id, authContext.Subject)
+	success, err := r.Repo.Project.DeleteProject(ctx, id, authContext.Sub)
 	if err != nil {
 		return false, fmt.Errorf("failed to delete project: %v", err)
 	}
@@ -83,11 +85,70 @@ func (r *mutationResolver) UpdateProjectMetadata(ctx context.Context, id string,
 	if strings.TrimSpace(name) == "" {
 		return false, fmt.Errorf("project name cannot be empty")
 	}
-	err := r.Repo.Project.UpdateProjectMetadata(ctx, id, name, description, authContext.Subject)
+	err := r.Repo.Project.UpdateProjectMetadata(ctx, id, name, description, authContext.Sub)
 	if err != nil {
 		return false, fmt.Errorf("failed to update project metadata: %v", err)
 	}
 	return true, nil
+}
+
+// ApplyOps is the resolver for the applyOps field.
+func (r *mutationResolver) ApplyOps(ctx context.Context, projectID string, socketID string, ops []*model.OperationInput) (*model.ApplyOpsResult, error) {
+	authContext := auth.ForContext(ctx)
+
+	// Convert GraphQL input to repository input
+	repoOps := make([]repository.OpInput, len(ops))
+	for i, op := range ops {
+		repoOps[i] = repository.OpInput{
+			ClientSeq:  op.ClientSeq,
+			Type:       string(op.Type),
+			ElementID:  op.ElementID,
+			ElementVer: op.ElementVer,
+			BaseSeq:    op.BaseSeq,
+			Data:       op.Data,
+		}
+	}
+
+	result, err := r.Repo.Operation.ApplyOps(ctx, projectID, socketID, repoOps, authContext.Sub)
+	if err != nil {
+		return nil, fmt.Errorf("failed to apply ops: %v", err)
+	}
+
+	// Convert accepted ops to GraphQL model and broadcast
+	if len(result.Accepted) > 0 {
+		var gqlOps []*model.Operation
+		for _, op := range result.Accepted {
+			opType := model.OpType(op.Type)
+			gqlOps = append(gqlOps, &model.Operation{
+				OpID:       op.ID.Hex(),
+				Seq:        int32(op.Seq),
+				ClientSeq:  int32(op.ClientSeq),
+				SocketID:   op.SocketID,
+				Type:       opType,
+				ElementID:  op.ElementID,
+				ElementVer: int32(op.ElementVer),
+				BaseSeq:    int32(op.BaseSeq),
+				Data:       op.Data,
+				Timestamp:  op.Timestamp,
+			})
+		}
+		r.broadcastOps(projectID, gqlOps, socketID)
+	}
+
+	// Build response
+	gqlResult := &model.ApplyOpsResult{
+		Ack:       result.Ack,
+		ServerSeq: int32(result.ServerSeq),
+	}
+	for _, rej := range result.Rejected {
+		gqlResult.Rejected = append(gqlResult.Rejected, &model.RejectedOp{
+			ClientSeq: rej.ClientSeq,
+			ElementID: rej.ElementID,
+			Reason:    rej.Reason,
+		})
+	}
+
+	return gqlResult, nil
 }
 
 // Projects is the resolver for the projects field.
@@ -120,7 +181,7 @@ func (r *queryResolver) Projects(ctx context.Context) ([]*model.Project, error) 
 // Project is the resolver for the project field.
 func (r *queryResolver) Project(ctx context.Context, id string) (*model.Project, error) {
 	authContext := auth.ForContext(ctx)
-	project, err := r.Repo.Project.GetProjectByID(ctx, id, authContext.Subject)
+	project, err := r.Repo.Project.GetProjectByID(ctx, id, authContext.Sub)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch project: %v", err)
 	}
@@ -147,7 +208,7 @@ func (r *queryResolver) Project(ctx context.Context, id string) (*model.Project,
 // ProjectsByUser is the resolver for the projectsByUser field.
 func (r *queryResolver) ProjectsByUser(ctx context.Context, userID string) ([]*model.Project, error) {
 	authContext := auth.ForContext(ctx)
-	projects, err := r.Repo.Project.GetProjectsByUserID(ctx, authContext.Subject)
+	projects, err := r.Repo.Project.GetProjectsByUserID(ctx, authContext.Sub)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch projects: %v", err)
 	}
@@ -175,7 +236,7 @@ func (r *queryResolver) ProjectsByUser(ctx context.Context, userID string) ([]*m
 // ProjectsPersonalByUser is the resolver for the projectsPersonalByUser field.
 func (r *queryResolver) ProjectsPersonalByUser(ctx context.Context, userID string) ([]*model.Project, error) {
 	authContext := auth.ForContext(ctx)
-	projects, err := r.Repo.Project.GetPersonalProjects(ctx, authContext.Subject)
+	projects, err := r.Repo.Project.GetPersonalProjects(ctx, authContext.Sub)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch projects: %v", err)
 	}
@@ -216,13 +277,65 @@ func (r *queryResolver) ProjectsByWorkspace(ctx context.Context, workspaceID str
 	return result, nil
 }
 
+// OpsSince is the resolver for the opsSince field.
+func (r *queryResolver) OpsSince(ctx context.Context, projectID string, sinceSeq int32, limit *int32) ([]*model.Operation, error) {
+	ops, err := r.Repo.Operation.GetOpsSince(ctx, projectID, sinceSeq, limit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ops: %v", err)
+	}
+	return convertOpsToModel(ops), nil
+}
+
+// ProjectHistory is the resolver for the projectHistory field.
+func (r *queryResolver) ProjectHistory(ctx context.Context, projectID string, fromSeq int32, toSeq int32) ([]*model.Operation, error) {
+	ops, err := r.Repo.Operation.GetOpsRange(ctx, projectID, fromSeq, toSeq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get project history: %v", err)
+	}
+	return convertOpsToModel(ops), nil
+}
+
+// ProjectSnapshotAt is the resolver for the projectSnapshotAt field.
+func (r *queryResolver) ProjectSnapshotAt(ctx context.Context, projectID string, seq int32) (*model.ProjectSnapshot, error) {
+	authContext := auth.ForContext(ctx)
+	elements, lastSeq, timestamp, err := r.Repo.Operation.ReconstructStateAt(ctx, projectID, seq, authContext.Sub)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reconstruct snapshot: %v", err)
+	}
+	return &model.ProjectSnapshot{
+		Elements:  elements,
+		Seq:       int32(lastSeq),
+		Timestamp: timestamp,
+	}, nil
+}
+
+func convertOpsToModel(ops []*models.Operation) []*model.Operation {
+	var result []*model.Operation
+	for _, op := range ops {
+		opType := model.OpType(op.Type)
+		result = append(result, &model.Operation{
+			OpID:       op.ID.Hex(),
+			Seq:        int32(op.Seq),
+			ClientSeq:  int32(op.ClientSeq),
+			SocketID:   op.SocketID,
+			Type:       opType,
+			ElementID:  op.ElementID,
+			ElementVer: int32(op.ElementVer),
+			BaseSeq:    int32(op.BaseSeq),
+			Data:       op.Data,
+			Timestamp:  op.Timestamp,
+		})
+	}
+	return result
+}
+
 // Project is the resolver for the project field.
 func (r *subscriptionResolver) Project(ctx context.Context, id string) (<-chan *model.ProjectSubscription, error) {
 	fmt.Println("Trying to subscribe to project:", id)
 	authContext := auth.ForContext(ctx)
 
 	// Verify user has access to this project
-	project, err := r.Repo.Project.GetProjectByID(ctx, id, authContext.Subject)
+	project, err := r.Repo.Project.GetProjectByID(ctx, id, authContext.Sub)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch project: %v", err)
 	}
@@ -230,8 +343,8 @@ func (r *subscriptionResolver) Project(ctx context.Context, id string) (<-chan *
 		return nil, fmt.Errorf("project not found or access denied")
 	}
 
-	// Create a channel for this subscription
-	ch := make(chan *model.ProjectSubscription, 1)
+	// Create a channel for this subscription (buffer of 64 to prevent dropped updates)
+	ch := make(chan *model.ProjectSubscription, 64)
 
 	// Subscribe to project updates
 	socketID := r.subscribeToProject(id, ch)
@@ -247,6 +360,45 @@ func (r *subscriptionResolver) Project(ctx context.Context, id string) (<-chan *
 	go func(socketID string) {
 		<-ctx.Done()
 		r.unsubscribeFromProject(id, socketID)
+	}(socketID)
+
+	return ch, nil
+}
+
+// ProjectOps is the resolver for the projectOps field.
+func (r *subscriptionResolver) ProjectOps(ctx context.Context, id string) (<-chan *model.ProjectOpsSubscription, error) {
+	fmt.Println("Trying to subscribe to project ops:", id)
+	authContext := auth.ForContext(ctx)
+
+	// Verify user has access to this project
+	project, err := r.Repo.Project.GetProjectByID(ctx, id, authContext.Sub)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch project: %v", err)
+	}
+	if project == nil {
+		return nil, fmt.Errorf("project not found or access denied")
+	}
+
+	ch := make(chan *model.ProjectOpsSubscription, 64)
+	socketID := r.subscribeToProjectOps(id, authContext.Sub, authContext.PreferredUsername, ch)
+	fmt.Println("Subscribed to project ops:", id, "with socketID:", socketID)
+
+	// Send initial empty ops message with the socketID
+	ch <- &model.ProjectOpsSubscription{
+		Ops:      []*model.Operation{},
+		SocketID: socketID,
+	}
+
+	// Add to presence tracking
+	r.addPresence(id, authContext.Sub, authContext.PreferredUsername, authContext.Email, time.Now().Format(time.RFC3339))
+	r.broadcastPresence(id)
+
+	// Clean up when context is done
+	go func(socketID string) {
+		<-ctx.Done()
+		r.unsubscribeFromProjectOps(id, socketID)
+		r.removePresence(id, authContext.Sub)
+		r.broadcastPresence(id)
 	}(socketID)
 
 	return ch, nil

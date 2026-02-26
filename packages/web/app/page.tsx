@@ -1,10 +1,4 @@
-import {
-  SignedIn,
-  SignedOut,
-  SignInButton,
-  SignUpButton,
-  UserButton,
-} from "@clerk/nextjs";
+import { getSession } from "@/lib/auth/session";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +19,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-export default function Home() {
+export default async function Home() {
+  const session = await getSession();
+
   const features = [
     {
       icon: <Palette className="h-6 w-6" />,
@@ -106,7 +102,7 @@ export default function Home() {
               </div>
               <span className="text-xl font-bold text-foreground">Collab Draw</span>
             </div>
-            
+
             <nav className="hidden md:flex items-center space-x-8">
               <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">
                 Features
@@ -120,20 +116,20 @@ export default function Home() {
             </nav>
 
             <div className="flex items-center space-x-4">
-              <SignedOut>
-                <SignInButton>
-                  <Button variant="ghost" className="hover:text-white">Sign In</Button>
-                </SignInButton>
-                <SignUpButton>
-                  <Button>Get Started</Button>
-                </SignUpButton>
-              </SignedOut>
-              <SignedIn>
+              {!session ? (
+                <>
+                  <Link href="/api/auth/signin">
+                    <Button variant="ghost" className="hover:text-white">Sign In</Button>
+                  </Link>
+                  <Link href="/api/auth/signin">
+                    <Button>Get Started</Button>
+                  </Link>
+                </>
+              ) : (
                 <Link href="/app">
                   <Button variant="ghost">Dashboard</Button>
                 </Link>
-                <UserButton />
-              </SignedIn>
+              )}
             </div>
           </div>
         </div>
@@ -150,34 +146,33 @@ export default function Home() {
                   New: Real-time collaboration
                 </Badge>
                 <h1 className="text-4xl lg:text-6xl font-bold text-foreground leading-tight">
-                  Draw, Design & 
+                  Draw, Design &
                   <span className="text-primary"> Collaborate</span>
                   <br />
                   in Real-time
                 </h1>
                 <p className="text-xl text-muted-foreground max-w-lg">
-                  Create beautiful diagrams, wireframes, and illustrations with your team. 
+                  Create beautiful diagrams, wireframes, and illustrations with your team.
                   Powerful drawing tools meet seamless collaboration in one platform.
                 </p>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4">
-                <SignedOut>
-                  <SignUpButton>
+                {!session ? (
+                  <Link href="/api/auth/signin">
                     <Button size="lg" className="text-lg px-8">
                       Start Drawing Free
                       <ArrowRight className="ml-2 h-5 w-5" />
                     </Button>
-                  </SignUpButton>
-                </SignedOut>
-                <SignedIn>
+                  </Link>
+                ) : (
                   <Link href="/app">
                     <Button size="lg" className="text-lg px-8">
                       Go to Dashboard
                       <ArrowRight className="ml-2 h-5 w-5" />
                     </Button>
                   </Link>
-                </SignedIn>
+                )}
                 <Button variant="outline" size="lg" className="text-lg px-6">
                   <Play className="mr-2 h-5 w-5" />
                   Watch Demo
@@ -214,7 +209,7 @@ export default function Home() {
                   Live Preview
                 </div>
               </div>
-              
+
               {/* Floating elements */}
               <div className="absolute -top-8 -left-8 bg-card border border-border rounded-lg p-3 shadow-lg">
                 <Users className="h-5 w-5 text-primary" />
@@ -333,22 +328,21 @@ export default function Home() {
               Join thousands of teams already using Collab Draw to bring their ideas to life
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <SignedOut>
-                <SignUpButton>
+              {!session ? (
+                <Link href="/api/auth/signin">
                   <Button size="lg" className="text-lg px-8">
                     Get Started Free
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
-                </SignUpButton>
-              </SignedOut>
-              <SignedIn>
+                </Link>
+              ) : (
                 <Link href="/app">
                   <Button size="lg" className="text-lg px-8">
                     Go to Dashboard
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
                 </Link>
-              </SignedIn>
+              )}
             </div>
           </div>
         </div>
@@ -369,7 +363,7 @@ export default function Home() {
                 The collaborative drawing platform for modern teams.
               </p>
             </div>
-            
+
             <div className="space-y-4">
               <h4 className="font-semibold text-foreground">Product</h4>
               <div className="space-y-2 text-muted-foreground">
@@ -397,7 +391,7 @@ export default function Home() {
               </div>
             </div>
           </div>
-          
+
           <div className="border-t border-border mt-12 pt-8 text-center text-muted-foreground">
             <p>&copy; 2025 Collab Draw. All rights reserved.</p>
           </div>

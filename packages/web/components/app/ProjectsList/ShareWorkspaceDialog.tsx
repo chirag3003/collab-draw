@@ -1,6 +1,6 @@
 "use client";
 
-import { useUser } from "@clerk/nextjs";
+import { useAuth } from "@/lib/auth/context";
 import { Crown, Mail, Share2, UserPlus, X } from "lucide-react";
 import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -46,7 +46,7 @@ export default function ShareWorkspaceDialog({
     members: [],
   },
 }: ShareWorkspaceDialogProps) {
-  const { user: currentUser } = useUser();
+  const { user } = useAuth();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState("");
@@ -210,7 +210,7 @@ export default function ShareWorkspaceDialog({
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    {currentUser?.id === members.owner.id && (
+                    {user?.id === members.owner.id && (
                       <Button
                         variant="ghost"
                         size="sm"

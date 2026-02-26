@@ -1,6 +1,6 @@
 "use client";
 
-import { useUser } from "@clerk/nextjs";
+import { useAuth } from "@/lib/auth/context";
 import type React from "react";
 import Sidebar from "@/components/app/Sidebar";
 
@@ -9,7 +9,7 @@ interface AppLayoutProps {
 }
 
 export default function AppLayout({ children }: AppLayoutProps) {
-  const { user } = useUser();
+  const { user } = useAuth();
   return (
     <div className="app-layout w-screen h-screen flex overflow-hidden">
       <div className="w-80 h-screen">

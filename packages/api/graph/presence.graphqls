@@ -1,0 +1,34 @@
+input CursorInput {
+    x: Float!
+    y: Float!
+    selectedElementIds: [String!]
+}
+
+type CursorUpdate {
+    userID: ID!
+    userName: String!
+    color: String!
+    x: Float!
+    y: Float!
+    selectedElementIds: [String!]
+    timestamp: String!
+}
+
+type UserPresence {
+    userID: ID!
+    userName: String!
+    email: String!
+    status: PresenceStatus!
+    joinedAt: String!
+}
+
+enum PresenceStatus { ACTIVE, IDLE }
+
+extend type Mutation {
+    updateCursor(projectID: ID!, cursor: CursorInput!): Boolean!
+}
+
+extend type Subscription {
+    cursors(projectID: ID!): CursorUpdate!
+    presence(projectID: ID!): [UserPresence!]!
+}

@@ -1,9 +1,10 @@
-import { ClerkProvider } from "@clerk/nextjs";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "@excalidraw/excalidraw/index.css";
 import ApolloProvider from "@/components/providers/ApolloProvider";
+import { AuthProvider } from "@/lib/auth/context";
+import { getSession } from "@/lib/auth/session";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -78,13 +79,15 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await getSession();
+
   return (
-    <ClerkProvider>
+    <AuthProvider session={session ? { user: session.user, accessToken: session.accessToken } : null}>
       <ApolloProvider>
         <html lang="en">
           <body
@@ -94,6 +97,6 @@ export default function RootLayout({
           </body>
         </html>
       </ApolloProvider>
-    </ClerkProvider>
+    </AuthProvider>
   );
 }

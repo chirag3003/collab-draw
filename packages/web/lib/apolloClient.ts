@@ -4,51 +4,27 @@ import { GraphQLWsLink } from "@apollo/client/link/subscriptions";
 import { getMainDefinition } from "@apollo/client/utilities";
 import { createClient } from "graphql-ws";
 
-// Define interface for Clerk window object
-interface ClerkWindow extends Window {
-  Clerk?: {
-    session?: {
-      getToken: () => Promise<string | null>;
-    };
-  };
-}
-
-declare const window: ClerkWindow;
-
 let apolloClient: ApolloClient | null = null;
 
 const createApolloClient = () => {
-  // Create HTTP link
+  // Create HTTP link — goes through Next.js proxy
   const httpLink = new HttpLink({
-    uri:
-      process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT ||
-      "http://localhost:5000/query",
-    credentials: "include", // Include cookies for authentication
+    uri: "/api/graphql",
+    credentials: "include",
   });
 
-  // Create WebSocket link for subscriptions (only in browser)
+  // Create WebSocket link for subscriptions — connects directly to the API
   let wsLink: GraphQLWsLink | null = null;
   if (typeof window !== "undefined") {
-    const wsUri = 
-      process.env.NEXT_PUBLIC_GRAPHQL_WS_ENDPOINT ||
-      "ws://localhost:5000/query";
-    
+    const apiWsUrl = process.env.NEXT_PUBLIC_API_WS_URL
+      || `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.hostname}:5005`;
+    const wsUri = `${apiWsUrl}/query`;
+
     wsLink = new GraphQLWsLink(
       createClient({
         url: wsUri,
-        connectionParams: async () => {
-          let token = null;
-          try {
-            // Try to get token from Clerk session
-            if (window.Clerk?.session) {
-              token = await window.Clerk.session.getToken();
-            }
-          } catch (error) {
-            console.error("Error getting Clerk token for WebSocket:", error);
-          }
-          return {
-            ...(token && { authorization: `Bearer ${token}` }),
-          };
+        connectionParams: () => {
+          return {};
         },
         shouldRetry: () => true,
         retryAttempts: Infinity,
@@ -57,27 +33,11 @@ const createApolloClient = () => {
     );
   }
 
-  // Create auth link
+  // Create auth link (no-op for client-side, auth is handled by the proxy)
   const authLink = setContext(async (_, { headers }) => {
-    let token = null;
-    
-    // Check if we're in the browser environment
-    if (typeof window !== "undefined") {
-      try {
-        // Try to get token from Clerk session
-        if (window.Clerk?.session) {
-          token = await window.Clerk.session.getToken();
-        }
-      } catch (error) {
-        console.error("Error getting Clerk token:", error);
-      }
-    }
-
-    // Return the headers with authorization
     return {
       headers: {
         ...headers,
-        ...(token && { authorization: `Bearer ${token}` }),
       },
     };
   });
@@ -101,7 +61,7 @@ const createApolloClient = () => {
     link: splitLink,
     cache: new InMemoryCache(),
   });
-  
+
   return apolloClient;
 };
 

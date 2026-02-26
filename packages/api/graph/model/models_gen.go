@@ -2,6 +2,35 @@
 
 package model
 
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"strconv"
+)
+
+type ApplyOpsResult struct {
+	Ack       bool          `json:"ack"`
+	ServerSeq int32         `json:"serverSeq"`
+	Rejected  []*RejectedOp `json:"rejected,omitempty"`
+}
+
+type CursorInput struct {
+	X                  float64  `json:"x"`
+	Y                  float64  `json:"y"`
+	SelectedElementIds []string `json:"selectedElementIds,omitempty"`
+}
+
+type CursorUpdate struct {
+	UserID             string   `json:"userID"`
+	UserName           string   `json:"userName"`
+	Color              string   `json:"color"`
+	X                  float64  `json:"x"`
+	Y                  float64  `json:"y"`
+	SelectedElementIds []string `json:"selectedElementIds,omitempty"`
+	Timestamp          string   `json:"timestamp"`
+}
+
 type Mutation struct {
 }
 
@@ -19,6 +48,28 @@ type NewWorkspace struct {
 	Owner       string `json:"owner"`
 }
 
+type Operation struct {
+	OpID       string  `json:"opID"`
+	Seq        int32   `json:"seq"`
+	ClientSeq  int32   `json:"clientSeq"`
+	SocketID   string  `json:"socketID"`
+	Type       OpType  `json:"type"`
+	ElementID  string  `json:"elementID"`
+	ElementVer int32   `json:"elementVer"`
+	BaseSeq    int32   `json:"baseSeq"`
+	Data       *string `json:"data,omitempty"`
+	Timestamp  string  `json:"timestamp"`
+}
+
+type OperationInput struct {
+	ClientSeq  int32   `json:"clientSeq"`
+	Type       OpType  `json:"type"`
+	ElementID  string  `json:"elementID"`
+	ElementVer int32   `json:"elementVer"`
+	BaseSeq    int32   `json:"baseSeq"`
+	Data       *string `json:"data,omitempty"`
+}
+
 type Project struct {
 	ID          string  `json:"id"`
 	Name        string  `json:"name"`
@@ -30,6 +81,17 @@ type Project struct {
 	CreatedAt   string  `json:"createdAt"`
 }
 
+type ProjectOpsSubscription struct {
+	Ops      []*Operation `json:"ops"`
+	SocketID string       `json:"socketID"`
+}
+
+type ProjectSnapshot struct {
+	Elements  string `json:"elements"`
+	Seq       int32  `json:"seq"`
+	Timestamp string `json:"timestamp"`
+}
+
 type ProjectSubscription struct {
 	Elements string `json:"elements"`
 	SocketID string `json:"socketID"`
@@ -38,7 +100,21 @@ type ProjectSubscription struct {
 type Query struct {
 }
 
+type RejectedOp struct {
+	ClientSeq int32  `json:"clientSeq"`
+	ElementID string `json:"elementID"`
+	Reason    string `json:"reason"`
+}
+
 type Subscription struct {
+}
+
+type UserPresence struct {
+	UserID   string         `json:"userID"`
+	UserName string         `json:"userName"`
+	Email    string         `json:"email"`
+	Status   PresenceStatus `json:"status"`
+	JoinedAt string         `json:"joinedAt"`
 }
 
 type Workspace struct {
@@ -60,4 +136,116 @@ type WorkspaceMember struct {
 type WorkspaceMembersResponse struct {
 	Members []*WorkspaceMember `json:"members"`
 	Owner   *WorkspaceMember   `json:"owner"`
+}
+
+type OpType string
+
+const (
+	OpTypeAdd    OpType = "ADD"
+	OpTypeUpdate OpType = "UPDATE"
+	OpTypeDelete OpType = "DELETE"
+)
+
+var AllOpType = []OpType{
+	OpTypeAdd,
+	OpTypeUpdate,
+	OpTypeDelete,
+}
+
+func (e OpType) IsValid() bool {
+	switch e {
+	case OpTypeAdd, OpTypeUpdate, OpTypeDelete:
+		return true
+	}
+	return false
+}
+
+func (e OpType) String() string {
+	return string(e)
+}
+
+func (e *OpType) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = OpType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid OpType", str)
+	}
+	return nil
+}
+
+func (e OpType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *OpType) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e OpType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
+type PresenceStatus string
+
+const (
+	PresenceStatusActive PresenceStatus = "ACTIVE"
+	PresenceStatusIdle   PresenceStatus = "IDLE"
+)
+
+var AllPresenceStatus = []PresenceStatus{
+	PresenceStatusActive,
+	PresenceStatusIdle,
+}
+
+func (e PresenceStatus) IsValid() bool {
+	switch e {
+	case PresenceStatusActive, PresenceStatusIdle:
+		return true
+	}
+	return false
+}
+
+func (e PresenceStatus) String() string {
+	return string(e)
+}
+
+func (e *PresenceStatus) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = PresenceStatus(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid PresenceStatus", str)
+	}
+	return nil
+}
+
+func (e PresenceStatus) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *PresenceStatus) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e PresenceStatus) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }

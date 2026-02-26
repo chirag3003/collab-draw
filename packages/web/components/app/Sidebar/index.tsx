@@ -1,6 +1,6 @@
 "use client";
 
-import { SignOutButton, useClerk, useUser } from "@clerk/nextjs";
+import { useAuth } from "@/lib/auth/context";
 import {
   FileText,
   FolderOpen,
@@ -31,10 +31,9 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ userID }: SidebarProps) {
-  const { openUserProfile } = useClerk();
+  const { user: sessionUser, signOut } = useAuth();
   const { data: workspaces } = useWorkspaces(userID);
   const { data: sharedWorkspaces } = useSharedWorkspaces(userID);
-  const { user } = useUser();
   const pathname = usePathname();
   const [createWorkspace] = useCreateWorkspace();
   const [searchQuery, setSearchQuery] = useState("");
@@ -60,7 +59,7 @@ export default function Sidebar({ userID }: SidebarProps) {
   const filteredMyWorkspaces = useMemo(() => {
     const list = workspaces?.workspacesByUser ?? [];
     if (!searchQuery.trim()) return list;
-    return list.filter(ws => 
+    return list.filter(ws =>
       ws.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ws.description?.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -69,7 +68,7 @@ export default function Sidebar({ userID }: SidebarProps) {
   const filteredSharedWorkspaces = useMemo(() => {
     const list = sharedWorkspaces?.sharedWorkspacesByUser ?? [];
     if (!searchQuery.trim()) return list;
-    return list.filter(ws => 
+    return list.filter(ws =>
       ws.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ws.description?.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -79,7 +78,6 @@ export default function Sidebar({ userID }: SidebarProps) {
     title: string;
     description: string;
   }) => {
-    // TODO: Implement workspace creation logic
     await createWorkspace({
       variables: {
         name: data.title,
@@ -87,9 +85,11 @@ export default function Sidebar({ userID }: SidebarProps) {
         owner: userID,
       },
     });
-    console.log("Creating workspace:", data);
-    // Here you would typically make an API call to create the workspace
   };
+
+  const keycloakAccountUrl = process.env.NEXT_PUBLIC_KEYCLOAK_URL
+    ? `${process.env.NEXT_PUBLIC_KEYCLOAK_URL}/realms/${process.env.NEXT_PUBLIC_KEYCLOAK_REALM || "collab-draw"}/account`
+    : "#";
 
   return (
     <div className="w-80 h-screen border-r border-sidebar-border flex flex-col bg-sidebar">
@@ -109,12 +109,12 @@ export default function Sidebar({ userID }: SidebarProps) {
       {/* Navigation Section */}
       <div className="px-4 py-4 space-y-2 flex-1 overflow-hidden flex flex-col">
         {/* Personal Projects - Clear Active State */}
-        <Link 
+        <Link
           href="/app"
           className={cn(
             "flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all",
-            isPersonalView 
-              ? "bg-primary text-primary-foreground shadow-sm" 
+            isPersonalView
+              ? "bg-primary text-primary-foreground shadow-sm"
               : "hover:bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground"
           )}
         >
@@ -156,11 +156,11 @@ export default function Sidebar({ userID }: SidebarProps) {
               className="w-full flex items-center justify-between px-2 py-2 rounded-lg hover:bg-sidebar-accent/30 transition-colors group"
             >
               <div className="flex items-center gap-2">
-                <ChevronRight 
+                <ChevronRight
                   className={cn(
                     "h-4 w-4 text-sidebar-foreground/60 transition-transform",
                     myWorkspacesExpanded && "rotate-90"
-                  )} 
+                  )}
                 />
                 <FolderOpen className="h-4 w-4 text-sidebar-foreground/60" />
                 <h3 className="text-xs font-semibold text-sidebar-foreground/70 uppercase tracking-wider">
@@ -211,11 +211,11 @@ export default function Sidebar({ userID }: SidebarProps) {
               className="w-full flex items-center justify-between px-2 py-2 rounded-lg hover:bg-sidebar-accent/30 transition-colors group"
             >
               <div className="flex items-center gap-2">
-                <ChevronRight 
+                <ChevronRight
                   className={cn(
                     "h-4 w-4 text-sidebar-foreground/60 transition-transform",
                     sharedWorkspacesExpanded && "rotate-90"
-                  )} 
+                  )}
                 />
                 <Users className="h-4 w-4 text-sidebar-foreground/60" />
                 <h3 className="text-xs font-semibold text-sidebar-foreground/70 uppercase tracking-wider">
@@ -267,39 +267,39 @@ export default function Sidebar({ userID }: SidebarProps) {
         {/* User Profile */}
         <div className="flex items-center gap-3 mt-4 p-3 rounded-lg hover:bg-sidebar-accent/30 transition-colors">
           <Avatar className="h-10 w-10 ring-2 ring-sidebar-border">
-            <AvatarImage src={user?.imageUrl} alt={user?.fullName || "User"} />
+            <AvatarImage src={sessionUser?.image || undefined} alt={sessionUser?.name || "User"} />
             <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
-              {user?.firstName?.[0]}{user?.lastName?.[0]}
+              {sessionUser?.name?.[0]?.toUpperCase() || "U"}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 overflow-hidden min-w-0">
             <h2 className="font-semibold text-sidebar-foreground text-sm truncate">
-              {user?.fullName}
+              {sessionUser?.name}
             </h2>
             <p className="text-xs text-sidebar-foreground/60 truncate">
-              {user?.emailAddresses[0]?.emailAddress}
+              {sessionUser?.email}
             </p>
           </div>
           <div className="flex gap-1 flex-shrink-0">
-            <Button
-              onClick={() => openUserProfile()}
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 hover:bg-sidebar-accent"
-              title="Settings"
-            >
-              <Settings className="h-4 w-4" />
-            </Button>
-            <SignOutButton>
+            <Link href={keycloakAccountUrl} target="_blank">
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
-                title="Sign Out"
+                className="h-8 w-8 hover:bg-sidebar-accent"
+                title="Settings"
               >
-                <LogOut className="h-4 w-4" />
+                <Settings className="h-4 w-4" />
               </Button>
-            </SignOutButton>
+            </Link>
+            <Button
+              onClick={() => signOut()}
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+              title="Sign Out"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </div>

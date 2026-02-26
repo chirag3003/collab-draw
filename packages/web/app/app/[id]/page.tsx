@@ -1,6 +1,6 @@
 "use client";
 
-import { useUser } from "@clerk/nextjs";
+import { useAuth } from "@/lib/auth/context";
 import { use } from "react";
 import ProjectsList from "@/components/app/ProjectsList";
 import { useCreateProject, useProjectsByWorkspace } from "@/lib/hooks/project";
@@ -14,7 +14,7 @@ interface WorkspaceAppProps {
   params: Promise<{ id: string }>;
 }
 export default function WorkspaceApp({ params }: WorkspaceAppProps) {
-  const { user } = useUser();
+  const { user } = useAuth();
   const { id } = use(params);
   const { data: workspaceData, loading } = useWorkspace(id);
   const { data: projectsData } = useProjectsByWorkspace(id);

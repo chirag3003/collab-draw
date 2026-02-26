@@ -3,9 +3,9 @@ package auth
 import (
 	"context"
 	"net/http"
+	"strings"
 
-	clerk "github.com/clerk/clerk-sdk-go/v2"
-	clerkHttp "github.com/clerk/clerk-sdk-go/v2/http"
+	"github.com/chirag3003/collab-draw-backend/internal/oidc"
 )
 
 // A private key for context that only this package can access.
@@ -13,27 +13,39 @@ type contextKey string
 
 const UserContextKey = contextKey("user")
 
-// Middleware decodes the session token and adds the user ID to the context.
+// Middleware verifies the Bearer token and adds OIDC claims to the context.
 func Middleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		protected := clerkHttp.RequireHeaderAuthorization()
-		return protected(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			claims, ok := clerk.SessionClaimsFromContext(r.Context())
-			if !ok {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			authHeader := r.Header.Get("Authorization")
+			if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}
 
-			// Token is valid, add claims to context
-			ctx := context.WithValue(r.Context(), UserContextKey, claims)
+			tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+
+			idToken, err := oidc.Verifier.Verify(r.Context(), tokenStr)
+			if err != nil {
+				http.Error(w, "unauthorized: invalid token", http.StatusUnauthorized)
+				return
+			}
+
+			var claims oidc.Claims
+			if err := idToken.Claims(&claims); err != nil {
+				http.Error(w, "unauthorized: invalid claims", http.StatusUnauthorized)
+				return
+			}
+
+			ctx := context.WithValue(r.Context(), UserContextKey, &claims)
 			r = r.WithContext(ctx)
 			next.ServeHTTP(w, r)
-		}))
+		})
 	}
 }
 
 // ForContext finds the user from the context. REQUIRES Middleware to have run.
-func ForContext(ctx context.Context) *clerk.SessionClaims {
-	raw, _ := ctx.Value(UserContextKey).(*clerk.SessionClaims)
+func ForContext(ctx context.Context) *oidc.Claims {
+	raw, _ := ctx.Value(UserContextKey).(*oidc.Claims)
 	return raw
 }

@@ -6,7 +6,7 @@ import { setContext } from "@apollo/client/link/context";
 import { GraphQLWsLink } from "@apollo/client/link/subscriptions";
 import { getMainDefinition } from "@apollo/client/utilities";
 import { createClient } from "graphql-ws";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth } from "@/lib/auth/context";
 import { useMemo } from "react";
 
 export default function ApolloProvider({
@@ -14,68 +14,43 @@ export default function ApolloProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const { getToken } = useAuth();
+  const { accessToken } = useAuth();
 
   const apolloClient = useMemo(() => {
-    // Create HTTP link
+    // Create HTTP link — goes through Next.js proxy
     const httpLink = new HttpLink({
-      uri:
-        process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT ||
-        "http://localhost:5000/query",
-      credentials: "include", // Include cookies for authentication
+      uri: "/api/graphql",
+      credentials: "include",
     });
 
-    // Create WebSocket link for subscriptions
-    const wsUri = 
-      process.env.NEXT_PUBLIC_GRAPHQL_WS_ENDPOINT ||
-      "ws://localhost:5000/query";
-    
+    // Create WebSocket link for subscriptions — connects directly to the API
+    // (Next.js standalone doesn't proxy WebSocket upgrades through rewrites)
+    const apiWsUrl = process.env.NEXT_PUBLIC_API_WS_URL
+      || (typeof window !== "undefined"
+        ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.hostname}:5005`
+        : "ws://localhost:5005");
+    const wsUri = `${apiWsUrl}/query`;
+
     const wsLink = new GraphQLWsLink(
       createClient({
         url: wsUri,
-        connectionParams: async () => {
-          let token = null;
-          try {
-            // Get token from Clerk
-            token = await getToken();
-            console.log("WebSocket connecting with token:", token ? "Token exists" : "No token");
-          } catch (error) {
-            console.error("Error getting Clerk token for WebSocket:", error);
-          }
+        connectionParams: () => {
           return {
-            ...(token && { authorization: `Bearer ${token}` }),
+            ...(accessToken && { authorization: `Bearer ${accessToken}` }),
           };
         },
-        shouldRetry: (errOrCloseEvent) => {
-          console.error("WebSocket connection failed:", errOrCloseEvent);
-          return true;
-        },
+        shouldRetry: () => true,
         retryAttempts: 5,
         keepAlive: 10000,
-        on: {
-          connected: () => console.log("WebSocket connected successfully"),
-          closed: (event) => console.log("WebSocket closed:", event),
-          error: (error) => console.error("WebSocket error:", error),
-        },
       }),
     );
 
     // Create auth link
     const authLink = setContext(async (_, { headers }) => {
-      let token = null;
-      
-      try {
-        // Get token from Clerk
-        token = await getToken();
-      } catch (error) {
-        console.error("Error getting Clerk token:", error);
-      }
-
-      // Return the headers with authorization
       return {
         headers: {
           ...headers,
-          ...(token && { authorization: `Bearer ${token}` }),
+          ...(accessToken && { authorization: `Bearer ${accessToken}` }),
         },
       };
     });
@@ -97,7 +72,7 @@ export default function ApolloProvider({
       link: splitLink,
       cache: new InMemoryCache(),
     });
-  }, [getToken]);
+  }, [accessToken]);
 
   return <Provider client={apolloClient}>{children}</Provider>;
 }

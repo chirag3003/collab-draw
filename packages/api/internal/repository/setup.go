@@ -6,6 +6,7 @@ type Repository struct {
 	Project   ProjectRepository
 	Workspace WorkspaceRepository
 	User      UserRepository
+	Operation OperationRepository
 }
 
 func Setup() *Repository {
@@ -13,6 +14,7 @@ func Setup() *Repository {
 		Project:   NewProjectRepository(),
 		Workspace: NewWorkspaceRepository(),
 		User:      NewUserRepository(),
+		Operation: NewOperationRepository(),
 	}
 	return repo
 }
