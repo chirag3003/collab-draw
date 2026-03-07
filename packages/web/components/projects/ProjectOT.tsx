@@ -4,24 +4,26 @@ import { gql } from "@apollo/client";
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type {
   AppState,
-  ExcalidrawImperativeAPI,
   Collaborator,
+  ExcalidrawImperativeAPI,
   SocketId,
 } from "@excalidraw/excalidraw/types";
 import Cookies from "js-cookie";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getApolloClient } from "@/lib/apolloClient";
-import {
-  useProjectOpsSubscription,
-  useProjectByID,
-} from "@/lib/hooks/project";
+import { useAuth } from "@/lib/auth/context";
 import {
   useCursorsSubscription,
-  useUpdateCursor,
   usePresenceSubscription,
+  useUpdateCursor,
 } from "@/lib/hooks/presence";
-import { OTClient, type OperationInput, type RemoteOperation } from "@/lib/ot/OTClient";
+import { useProjectByID, useProjectOpsSubscription } from "@/lib/hooks/project";
+import {
+  type OperationInput,
+  OTClient,
+  type RemoteOperation,
+} from "@/lib/ot/OTClient";
 import HistoryTimeline from "./HistoryTimeline";
 
 // Dynamically import Excalidraw to avoid SSR issues
@@ -51,7 +53,11 @@ function ConnectionStatus({
   presenceUsers,
 }: {
   status: "connected" | "disconnected" | "syncing";
-  presenceUsers: Array<{ userID: string; userName: string; status: "ACTIVE" | "IDLE" }>;
+  presenceUsers: Array<{
+    userID: string;
+    userName: string;
+    status: "ACTIVE" | "IDLE";
+  }>;
 }) {
   const statusConfig = {
     connected: { color: "bg-green-500", text: "Connected" },
@@ -82,7 +88,9 @@ function ConnectionStatus({
           )}
         </div>
       )}
-      <div className={`w-2 h-2 rounded-full ${config.color} ${status === "syncing" ? "animate-pulse" : ""}`} />
+      <div
+        className={`w-2 h-2 rounded-full ${config.color} ${status === "syncing" ? "animate-pulse" : ""}`}
+      />
       <span className="text-sm font-medium text-gray-700">{config.text}</span>
     </div>
   );
@@ -101,7 +109,11 @@ interface ApplyOpsMutationData {
   applyOps: {
     ack: boolean;
     serverSeq: number;
-    rejected: Array<{ clientSeq: number; elementID: string; reason: string }> | null;
+    rejected: Array<{
+      clientSeq: number;
+      elementID: string;
+      reason: string;
+    }> | null;
   };
 }
 
@@ -140,17 +152,188 @@ const OPS_SINCE_QUERY = gql`
   }
 `;
 
-export default function ProjectOT({ projectID, initialAppState }: ProjectOTProps) {
-  const [excalidrawApi, setExcalidrawApi] = useState<ExcalidrawImperativeAPI | null>(null);
+const CURSOR_SEND_INTERVAL_MS = 66;
+const CURSOR_IDLE_STOP_MS = 220;
+const CURSOR_LERP_ALPHA = 0.35;
+const CURSOR_SNAP_DISTANCE = 0.5;
+
+export default function ProjectOT({
+  projectID,
+  initialAppState,
+}: ProjectOTProps) {
+  const { user } = useAuth();
+  const [excalidrawApi, setExcalidrawApi] =
+    useState<ExcalidrawImperativeAPI | null>(null);
   const [initialSet, setInitialSet] = useState(false);
   const isRemoteUpdateRef = useRef(false);
   const otClientRef = useRef<OTClient | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<"connected" | "disconnected" | "syncing">("syncing");
+  const [connectionStatus, setConnectionStatus] = useState<
+    "connected" | "disconnected" | "syncing"
+  >("syncing");
   const collaboratorsRef = useRef<Map<SocketId, Collaborator>>(new Map());
-  const [presenceUsers, setPresenceUsers] = useState<Array<{ userID: string; userName: string; status: "ACTIVE" | "IDLE" }>>([]);
-  const cursorThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [presenceUsers, setPresenceUsers] = useState<
+    Array<{ userID: string; userName: string; status: "ACTIVE" | "IDLE" }>
+  >([]);
+  const cursorAnimationRafRef = useRef<number | null>(null);
+  const cursorSendIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
+  const lastCursorMoveAtRef = useRef(0);
+  const latestCursorPayloadRef = useRef<{
+    x: number;
+    y: number;
+    selectedElementIds: string[];
+  } | null>(null);
+  const remoteCursorStateRef = useRef<
+    Map<
+      SocketId,
+      {
+        username: string;
+        color: string;
+        selectedElementIds: Record<string, true>;
+        currentX: number;
+        currentY: number;
+        targetX: number;
+        targetY: number;
+      }
+    >
+  >(new Map());
   const [historyMode, setHistoryMode] = useState(false);
   const savedElementsRef = useRef<string | null>(null);
+  const [updateCursorMutation] = useUpdateCursor();
+
+  const flushCollaborators = useCallback(() => {
+    if (!excalidrawApi) return;
+    isRemoteUpdateRef.current = true;
+    excalidrawApi.updateScene({
+      collaborators: new Map(collaboratorsRef.current),
+    });
+  }, [excalidrawApi]);
+
+  const stepCursorAnimation = useCallback(() => {
+    let hasMovingCursor = false;
+
+    for (const [socketID, state] of remoteCursorStateRef.current) {
+      const dx = state.targetX - state.currentX;
+      const dy = state.targetY - state.currentY;
+      const distance = Math.hypot(dx, dy);
+
+      if (distance > CURSOR_SNAP_DISTANCE) {
+        state.currentX += dx * CURSOR_LERP_ALPHA;
+        state.currentY += dy * CURSOR_LERP_ALPHA;
+        hasMovingCursor = true;
+      } else {
+        state.currentX = state.targetX;
+        state.currentY = state.targetY;
+      }
+
+      collaboratorsRef.current.set(socketID, {
+        username: state.username,
+        color: { background: state.color, stroke: state.color },
+        pointer: { x: state.currentX, y: state.currentY, tool: "laser" },
+        selectedElementIds: state.selectedElementIds,
+        isCurrentUser: false,
+      });
+    }
+
+    flushCollaborators();
+
+    if (hasMovingCursor) {
+      cursorAnimationRafRef.current =
+        requestAnimationFrame(stepCursorAnimation);
+      return;
+    }
+
+    cursorAnimationRafRef.current = null;
+  }, [flushCollaborators]);
+
+  const startCursorAnimation = useCallback(() => {
+    if (cursorAnimationRafRef.current !== null) return;
+    cursorAnimationRafRef.current = requestAnimationFrame(stepCursorAnimation);
+  }, [stepCursorAnimation]);
+
+  const sendLatestCursor = useCallback(() => {
+    const latest = latestCursorPayloadRef.current;
+    if (!latest) {
+      if (
+        cursorSendIntervalRef.current &&
+        Date.now() - lastCursorMoveAtRef.current > CURSOR_IDLE_STOP_MS
+      ) {
+        clearInterval(cursorSendIntervalRef.current);
+        cursorSendIntervalRef.current = null;
+      }
+      return;
+    }
+
+    latestCursorPayloadRef.current = null;
+
+    updateCursorMutation({
+      variables: {
+        projectID,
+        cursor: {
+          x: latest.x,
+          y: latest.y,
+          selectedElementIds: latest.selectedElementIds,
+        },
+      },
+    }).catch(() => {});
+  }, [projectID, updateCursorMutation]);
+
+  const ensureCursorSender = useCallback(() => {
+    if (cursorSendIntervalRef.current) return;
+    cursorSendIntervalRef.current = setInterval(
+      sendLatestCursor,
+      CURSOR_SEND_INTERVAL_MS,
+    );
+  }, [sendLatestCursor]);
+
+  const handleCursorEvent = useCallback(
+    (
+      cursor:
+        | {
+            userID: string;
+            userName: string;
+            color: string;
+            x: number;
+            y: number;
+            selectedElementIds: string[];
+          }
+        | null
+        | undefined,
+    ) => {
+      if (!cursor) return;
+      if (user?.id && cursor.userID === user.id) return;
+
+      const selectedIds: Record<string, true> = {};
+      for (const id of cursor.selectedElementIds || []) {
+        selectedIds[id] = true;
+      }
+
+      const socketID = cursor.userID as SocketId;
+      const existing = remoteCursorStateRef.current.get(socketID);
+
+      if (existing) {
+        existing.username = cursor.userName;
+        existing.color = cursor.color;
+        existing.selectedElementIds = selectedIds;
+        existing.targetX = cursor.x;
+        existing.targetY = cursor.y;
+      } else {
+        remoteCursorStateRef.current.set(socketID, {
+          username: cursor.userName,
+          color: cursor.color,
+          selectedElementIds: selectedIds,
+          currentX: cursor.x,
+          currentY: cursor.y,
+          targetX: cursor.x,
+          targetY: cursor.y,
+        });
+      }
+
+      startCursorAnimation();
+    },
+    [startCursorAnimation, user?.id],
+  );
 
   // Fetch initial project data
   const { data: projectData } = useProjectByID(projectID);
@@ -163,9 +346,11 @@ export default function ProjectOT({ projectID, initialAppState }: ProjectOTProps
   } = useProjectOpsSubscription(projectID, !excalidrawApi);
 
   // Cursor and presence subscriptions
-  const { data: cursorData } = useCursorsSubscription(projectID, !excalidrawApi);
-  const [updateCursorMutation] = useUpdateCursor();
-  const { data: presenceData } = usePresenceSubscription(projectID, !excalidrawApi);
+  useCursorsSubscription(projectID, !excalidrawApi, handleCursorEvent);
+  const { data: presenceData } = usePresenceSubscription(
+    projectID,
+    !excalidrawApi,
+  );
 
   // Initialize OT client
   useEffect(() => {
@@ -189,7 +374,10 @@ export default function ProjectOT({ projectID, initialAppState }: ProjectOTProps
           })),
         },
       });
-      return data!.applyOps;
+      if (!data?.applyOps) {
+        throw new Error("Failed to apply operations");
+      }
+      return data.applyOps;
     };
 
     const updateScene = (elements: OrderedExcalidrawElement[]) => {
@@ -199,14 +387,16 @@ export default function ProjectOT({ projectID, initialAppState }: ProjectOTProps
       }
     };
 
-    const fetchOpsSince = async (sinceSeq: number): Promise<RemoteOperation[]> => {
+    const fetchOpsSince = async (
+      sinceSeq: number,
+    ): Promise<RemoteOperation[]> => {
       const client = getApolloClient();
       const { data } = await client.query<OpsSinceQueryData>({
         query: OPS_SINCE_QUERY,
         variables: { projectID, sinceSeq },
         fetchPolicy: "network-only",
       });
-      return data!.opsSince;
+      return data?.opsSince ?? [];
     };
 
     otClientRef.current = new OTClient(sendOps, updateScene, fetchOpsSince);
@@ -243,7 +433,10 @@ export default function ProjectOT({ projectID, initialAppState }: ProjectOTProps
           })),
         },
       });
-      return data!.applyOps;
+      if (!data?.applyOps) {
+        throw new Error("Failed to apply operations");
+      }
+      return data.applyOps;
     };
 
     const updateScene = (elements: OrderedExcalidrawElement[]) => {
@@ -251,14 +444,16 @@ export default function ProjectOT({ projectID, initialAppState }: ProjectOTProps
       excalidrawApi.updateScene({ elements });
     };
 
-    const fetchOpsSince = async (sinceSeq: number): Promise<RemoteOperation[]> => {
+    const fetchOpsSince = async (
+      sinceSeq: number,
+    ): Promise<RemoteOperation[]> => {
       const client = getApolloClient();
       const { data } = await client.query<OpsSinceQueryData>({
         query: OPS_SINCE_QUERY,
         variables: { projectID, sinceSeq },
         fetchPolicy: "network-only",
       });
-      return data!.opsSince;
+      return data?.opsSince ?? [];
     };
 
     currentOT.destroy();
@@ -319,32 +514,6 @@ export default function ProjectOT({ projectID, initialAppState }: ProjectOTProps
     }
   }, [opsData]);
 
-  // Handle cursor subscription data - update collaborators
-  useEffect(() => {
-    if (!cursorData?.cursors) return;
-
-    const cursor = cursorData.cursors;
-    // Convert string[] to Record<string, true> as Excalidraw expects
-    const selectedIds: Record<string, true> = {};
-    for (const id of cursor.selectedElementIds || []) {
-      selectedIds[id] = true;
-    }
-    collaboratorsRef.current.set(cursor.userID as SocketId, {
-      username: cursor.userName,
-      color: { background: cursor.color, stroke: cursor.color },
-      pointer: { x: cursor.x, y: cursor.y, tool: "laser" },
-      selectedElementIds: selectedIds,
-      isCurrentUser: false,
-    });
-    // Push collaborators into Excalidraw via updateScene
-    if (excalidrawApi) {
-      isRemoteUpdateRef.current = true;
-      excalidrawApi.updateScene({
-        collaborators: new Map(collaboratorsRef.current),
-      });
-    }
-  }, [cursorData]);
-
   // Handle presence updates
   useEffect(() => {
     if (!presenceData?.presence) return;
@@ -385,31 +554,22 @@ export default function ProjectOT({ projectID, initialAppState }: ProjectOTProps
     [initialSet],
   );
 
-  // Send cursor position (throttled to ~10Hz)
+  // Send cursor position using trailing throttle (~15Hz)
   const handlePointerUpdate = useCallback(
     (payload: { pointer: { x: number; y: number }; button: string }) => {
-      if (cursorThrottleRef.current) return;
-
-      cursorThrottleRef.current = setTimeout(() => {
-        cursorThrottleRef.current = null;
-      }, 100);
-
       const selectedIds = excalidrawApi
         ? Object.keys(excalidrawApi.getAppState().selectedElementIds || {})
         : [];
 
-      updateCursorMutation({
-        variables: {
-          projectID,
-          cursor: {
-            x: payload.pointer.x,
-            y: payload.pointer.y,
-            selectedElementIds: selectedIds,
-          },
-        },
-      }).catch(() => {}); // Cursor updates are best-effort
+      lastCursorMoveAtRef.current = Date.now();
+      latestCursorPayloadRef.current = {
+        x: payload.pointer.x,
+        y: payload.pointer.y,
+        selectedElementIds: selectedIds,
+      };
+      ensureCursorSender();
     },
-    [projectID, updateCursorMutation, excalidrawApi],
+    [ensureCursorSender, excalidrawApi],
   );
 
   function setAppState(appState: AppState) {
@@ -422,10 +582,14 @@ export default function ProjectOT({ projectID, initialAppState }: ProjectOTProps
       if (!excalidrawApi) return;
       // Save current state on first preview
       if (!savedElementsRef.current) {
-        savedElementsRef.current = JSON.stringify(excalidrawApi.getSceneElements());
+        savedElementsRef.current = JSON.stringify(
+          excalidrawApi.getSceneElements(),
+        );
       }
       try {
-        const parsed = JSON.parse(elements || "[]") as OrderedExcalidrawElement[];
+        const parsed = JSON.parse(
+          elements || "[]",
+        ) as OrderedExcalidrawElement[];
         isRemoteUpdateRef.current = true;
         excalidrawApi.updateScene({ elements: parsed });
       } catch (e) {
@@ -439,11 +603,16 @@ export default function ProjectOT({ projectID, initialAppState }: ProjectOTProps
     (elements: string) => {
       if (!excalidrawApi || !otClientRef.current) return;
       try {
-        const parsed = JSON.parse(elements || "[]") as OrderedExcalidrawElement[];
+        const parsed = JSON.parse(
+          elements || "[]",
+        ) as OrderedExcalidrawElement[];
         isRemoteUpdateRef.current = true;
         excalidrawApi.updateScene({ elements: parsed });
         // Re-initialize OT client with restored state
-        otClientRef.current.initializeFromScene(parsed, otClientRef.current.getServerSeq());
+        otClientRef.current.initializeFromScene(
+          parsed,
+          otClientRef.current.getServerSeq(),
+        );
         savedElementsRef.current = null;
         setHistoryMode(false);
       } catch (e) {
@@ -457,7 +626,9 @@ export default function ProjectOT({ projectID, initialAppState }: ProjectOTProps
     // Restore the saved state
     if (savedElementsRef.current && excalidrawApi) {
       try {
-        const parsed = JSON.parse(savedElementsRef.current) as OrderedExcalidrawElement[];
+        const parsed = JSON.parse(
+          savedElementsRef.current,
+        ) as OrderedExcalidrawElement[];
         isRemoteUpdateRef.current = true;
         excalidrawApi.updateScene({ elements: parsed });
       } catch (e) {
@@ -468,21 +639,28 @@ export default function ProjectOT({ projectID, initialAppState }: ProjectOTProps
     setHistoryMode(false);
   }, [excalidrawApi]);
 
-  // Cleanup cursor throttle
+  // Cleanup cursor timers and animation frame
   useEffect(() => {
     return () => {
-      if (cursorThrottleRef.current) {
-        clearTimeout(cursorThrottleRef.current);
+      if (cursorSendIntervalRef.current) {
+        clearInterval(cursorSendIntervalRef.current);
+      }
+      if (cursorAnimationRafRef.current !== null) {
+        cancelAnimationFrame(cursorAnimationRafRef.current);
       }
     };
   }, []);
 
   return (
     <div className="w-full h-full relative">
-      <ConnectionStatus status={connectionStatus} presenceUsers={presenceUsers} />
+      <ConnectionStatus
+        status={connectionStatus}
+        presenceUsers={presenceUsers}
+      />
 
       {/* History toggle button */}
       <button
+        type="button"
         onClick={() => setHistoryMode((prev) => !prev)}
         className="absolute top-4 left-4 z-50 bg-white/90 backdrop-blur px-3 py-2 rounded-lg shadow-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
         title="View history"

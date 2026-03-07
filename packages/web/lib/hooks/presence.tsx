@@ -1,9 +1,5 @@
 import { gql } from "@apollo/client";
-import {
-  useLazyQuery,
-  useMutation,
-  useSubscription,
-} from "@apollo/client/react";
+import { useMutation, useSubscription } from "@apollo/client/react";
 
 // --- Cursor Hooks ---
 
@@ -16,7 +12,21 @@ export const useUpdateCursor = () => {
   return useMutation<{ updateCursor: boolean }>(MUTATION);
 };
 
-export const useCursorsSubscription = (projectID: string, skip: boolean) => {
+type CursorEvent = {
+  userID: string;
+  userName: string;
+  color: string;
+  x: number;
+  y: number;
+  selectedElementIds: string[];
+  timestamp: string;
+};
+
+export const useCursorsSubscription = (
+  projectID: string,
+  skip: boolean,
+  onCursor?: (cursor: CursorEvent) => void,
+) => {
   const SUBSCRIPTION = gql`
     subscription Cursors($projectID: ID!) {
       cursors(projectID: $projectID) {
@@ -31,19 +41,16 @@ export const useCursorsSubscription = (projectID: string, skip: boolean) => {
     }
   `;
   return useSubscription<{
-    cursors: {
-      userID: string;
-      userName: string;
-      color: string;
-      x: number;
-      y: number;
-      selectedElementIds: string[];
-      timestamp: string;
-    };
+    cursors: CursorEvent;
   }>(SUBSCRIPTION, {
     variables: { projectID },
     skip,
     shouldResubscribe: true,
+    onData: ({ data }) => {
+      const cursor = data.data?.cursors;
+      if (!cursor) return;
+      onCursor?.(cursor);
+    },
   });
 };
 
