@@ -170,6 +170,7 @@ export default function ProjectOT({
   const [connectionStatus, setConnectionStatus] = useState<
     "connected" | "disconnected" | "syncing"
   >("syncing");
+  const [isRealtimeReady, setIsRealtimeReady] = useState(false);
   const collaboratorsRef = useRef<Map<SocketId, Collaborator>>(new Map());
   const [presenceUsers, setPresenceUsers] = useState<
     Array<{ userID: string; userName: string; status: "ACTIVE" | "IDLE" }>
@@ -207,6 +208,7 @@ export default function ProjectOT({
   useEffect(() => {
     if (!projectID) return;
     setInitialSet(false);
+    setIsRealtimeReady(false);
     initialElementsAppliedRef.current = null;
     hasCaughtUpRef.current = false;
   }, [projectID]);
@@ -517,6 +519,7 @@ export default function ProjectOT({
     // First message: capture socketID
     if (!otClientRef.current.getSocketID() && subSocketID) {
       otClientRef.current.setSocketID(subSocketID);
+      setIsRealtimeReady(true);
       setConnectionStatus("connected");
       if (!hasCaughtUpRef.current) {
         hasCaughtUpRef.current = true;
@@ -545,8 +548,10 @@ export default function ProjectOT({
   // Monitor connection status
   useEffect(() => {
     if (opsError) {
+      setIsRealtimeReady(false);
       setConnectionStatus("disconnected");
     } else if (opsLoading) {
+      setIsRealtimeReady(false);
       setConnectionStatus("syncing");
     } else if (opsData) {
       setConnectionStatus("connected");
@@ -703,7 +708,10 @@ export default function ProjectOT({
             setAppState(appState);
           }
         }}
-        onPointerUpdate={historyMode ? undefined : handlePointerUpdate}
+        onPointerUpdate={
+          historyMode || !isRealtimeReady ? undefined : handlePointerUpdate
+        }
+        viewModeEnabled={!historyMode && !isRealtimeReady}
         UIOptions={{
           canvasActions: {
             toggleTheme: true,
@@ -714,6 +722,14 @@ export default function ProjectOT({
           },
         }}
       />
+
+      {!historyMode && !isRealtimeReady && (
+        <div className="absolute inset-0 z-40 bg-white/35 backdrop-blur-[1px] flex items-center justify-center pointer-events-none">
+          <div className="px-3 py-2 rounded-md bg-white/90 border border-gray-200 text-sm font-medium text-gray-700 shadow">
+            Connecting realtime sync...
+          </div>
+        </div>
+      )}
 
       {historyMode && (
         <HistoryTimeline
