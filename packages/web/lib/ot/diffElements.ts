@@ -77,5 +77,14 @@ export function diffElements(
 export function buildElementMap(
   elements: readonly OrderedExcalidrawElement[],
 ): Map<string, OrderedExcalidrawElement> {
-  return new Map(elements.map((el) => [el.id, el]));
+  const cloneElement = (
+    el: OrderedExcalidrawElement,
+  ): OrderedExcalidrawElement => {
+    if (typeof globalThis.structuredClone === "function") {
+      return globalThis.structuredClone(el) as OrderedExcalidrawElement;
+    }
+    return JSON.parse(JSON.stringify(el)) as OrderedExcalidrawElement;
+  };
+
+  return new Map(elements.map((el) => [el.id, cloneElement(el)]));
 }

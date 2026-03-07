@@ -200,7 +200,16 @@ export default function ProjectOT({
   >(new Map());
   const [historyMode, setHistoryMode] = useState(false);
   const savedElementsRef = useRef<string | null>(null);
+  const initialElementsAppliedRef = useRef<string | null>(null);
+  const hasCaughtUpRef = useRef(false);
   const [updateCursorMutation] = useUpdateCursor();
+
+  useEffect(() => {
+    if (!projectID) return;
+    setInitialSet(false);
+    initialElementsAppliedRef.current = null;
+    hasCaughtUpRef.current = false;
+  }, [projectID]);
 
   const flushCollaborators = useCallback(() => {
     if (!excalidrawApi) return;
@@ -470,11 +479,16 @@ export default function ProjectOT({
 
   // Handle initial project load - set scene elements
   useEffect(() => {
-    if (!excalidrawApi || !projectData?.project || initialSet) return;
+    if (!excalidrawApi || !projectData?.project) return;
 
     try {
       let toParse = projectData.project.elements || "[]";
       if (toParse.trim() === "") toParse = "[]";
+
+      if (initialSet && initialElementsAppliedRef.current === toParse) {
+        return;
+      }
+
       const elements = JSON.parse(toParse) as OrderedExcalidrawElement[];
 
       isRemoteUpdateRef.current = true;
@@ -483,7 +497,11 @@ export default function ProjectOT({
       if (otClientRef.current) {
         otClientRef.current.initializeFromScene(elements);
       }
-      setInitialSet(true);
+
+      initialElementsAppliedRef.current = toParse;
+      if (!initialSet) {
+        setInitialSet(true);
+      }
     } catch (error) {
       console.error("Failed to parse initial elements:", error);
       setInitialSet(true);
@@ -500,6 +518,10 @@ export default function ProjectOT({
     if (!otClientRef.current.getSocketID() && subSocketID) {
       otClientRef.current.setSocketID(subSocketID);
       setConnectionStatus("connected");
+      if (!hasCaughtUpRef.current) {
+        hasCaughtUpRef.current = true;
+        void otClientRef.current.catchUp();
+      }
       return;
     }
 

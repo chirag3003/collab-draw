@@ -24,7 +24,11 @@ export const useProjectByID = (projectID: string) => {
       workspace: string;
       elements: string;
     };
-  }>(QUERY, { variables: { ID: projectID } });
+  }>(QUERY, {
+    variables: { ID: projectID },
+    fetchPolicy: "network-only",
+    nextFetchPolicy: "cache-first",
+  });
 };
 
 export const usePersonalProjects = () => {
