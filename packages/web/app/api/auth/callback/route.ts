@@ -1,15 +1,18 @@
-import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { type NextRequest, NextResponse } from "next/server";
 import {
-  getPkceData,
-  createSessionCookie,
   clearPkceCookie,
+  createSessionCookie,
+  getPkceData,
   type Session,
 } from "@/lib/auth/session";
 
 // Resolve the app's public-facing origin (avoids 0.0.0.0 inside Docker)
 function getAppOrigin(request: NextRequest): string {
-  return process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || request.nextUrl.origin;
+  return (
+    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
+    request.nextUrl.origin
+  );
 }
 
 export async function GET(request: NextRequest) {
@@ -19,17 +22,13 @@ export async function GET(request: NextRequest) {
   const state = searchParams.get("state");
 
   if (!code || !state) {
-    return NextResponse.redirect(
-      new URL("/?error=missing_params", appOrigin),
-    );
+    return NextResponse.redirect(new URL("/?error=missing_params", appOrigin));
   }
 
   // Validate PKCE state
   const pkceData = await getPkceData();
   if (!pkceData || pkceData.state !== state) {
-    return NextResponse.redirect(
-      new URL("/?error=invalid_state", appOrigin),
-    );
+    return NextResponse.redirect(new URL("/?error=invalid_state", appOrigin));
   }
 
   const keycloakInternal = process.env.KEYCLOAK_URL!;
@@ -67,9 +66,13 @@ export async function GET(request: NextRequest) {
   const idTokenParts = tokens.id_token?.split(".");
   if (!idTokenParts || idTokenParts.length !== 3) {
     console.error("Missing or malformed id_token");
-    return NextResponse.redirect(new URL("/?error=missing_id_token", appOrigin));
+    return NextResponse.redirect(
+      new URL("/?error=missing_id_token", appOrigin),
+    );
   }
-  const userinfo = JSON.parse(Buffer.from(idTokenParts[1], "base64url").toString());
+  const userinfo = JSON.parse(
+    Buffer.from(idTokenParts[1], "base64url").toString(),
+  );
 
   // Build session
   const session: Session = {
@@ -89,10 +92,12 @@ export async function GET(request: NextRequest) {
   const pkceClear = clearPkceCookie();
 
   const cookieStore = await cookies();
-  cookieStore.set(sessionCookie.name, sessionCookie.value, sessionCookie.options);
+  cookieStore.set(
+    sessionCookie.name,
+    sessionCookie.value,
+    sessionCookie.options,
+  );
   cookieStore.set(pkceClear.name, pkceClear.value, pkceClear.options);
 
-  return NextResponse.redirect(
-    new URL(pkceData.callbackUrl, appOrigin),
-  );
+  return NextResponse.redirect(new URL(pkceData.callbackUrl, appOrigin));
 }

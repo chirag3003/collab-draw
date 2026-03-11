@@ -1,8 +1,8 @@
 "use client";
 
-import { useAuth } from "@/lib/auth/context";
 import type React from "react";
 import Sidebar from "@/components/app/Sidebar";
+import { useAuth } from "@/lib/auth/context";
 
 interface AppLayoutProps {
   children: React.ReactNode;

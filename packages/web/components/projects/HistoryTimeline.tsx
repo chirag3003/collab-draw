@@ -70,7 +70,9 @@ export default function HistoryTimeline({
   return (
     <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 bg-white/95 backdrop-blur rounded-xl shadow-xl border border-gray-200 px-6 py-4 w-[600px] max-w-[90vw]">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-800">History Timeline</h3>
+        <h3 className="text-sm font-semibold text-gray-800">
+          History Timeline
+        </h3>
         <div className="flex items-center gap-2">
           {previewTimestamp && (
             <span className="text-xs text-gray-500">
@@ -78,6 +80,7 @@ export default function HistoryTimeline({
             </span>
           )}
           <button
+            type="button"
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 text-lg leading-none"
           >
@@ -97,7 +100,9 @@ export default function HistoryTimeline({
           className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
           disabled={isLoading || currentSeq === 0}
         />
-        <span className="text-xs text-gray-400 w-10 text-right">{currentSeq}</span>
+        <span className="text-xs text-gray-400 w-10 text-right">
+          {currentSeq}
+        </span>
       </div>
 
       <div className="flex items-center justify-between mt-3">
@@ -107,6 +112,7 @@ export default function HistoryTimeline({
         </span>
         <div className="flex gap-2">
           <button
+            type="button"
             onClick={() => {
               setSliderValue(currentSeq);
               setPreviewTimestamp(null);
@@ -117,6 +123,7 @@ export default function HistoryTimeline({
             Cancel
           </button>
           <button
+            type="button"
             onClick={handleRestore}
             disabled={sliderValue === currentSeq || isLoading}
             className="px-3 py-1 text-xs rounded-md bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"

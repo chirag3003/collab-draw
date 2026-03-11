@@ -1,7 +1,9 @@
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 
+/** The type of element operation: add, update, or soft-delete. */
 export type OpType = "ADD" | "UPDATE" | "DELETE";
 
+/** A single element-level operation produced by {@link diffElements}. */
 export interface ElementOp {
   type: OpType;
   elementID: string;
@@ -73,10 +75,19 @@ export function diffElements(
 
 /**
  * Builds an element map from an element array, keyed by element ID.
+ * Each element is deep-cloned to prevent mutation of the map's entries.
+ *
+ * @param elements - The source elements to index.
+ * @returns A new `Map<id, element>` with cloned values.
  */
 export function buildElementMap(
   elements: readonly OrderedExcalidrawElement[],
 ): Map<string, OrderedExcalidrawElement> {
+  /**
+   * Deep-clones an Excalidraw element.
+   * Prefers `structuredClone` when available, falling back to
+   * JSON round-trip for older runtimes.
+   */
   const cloneElement = (
     el: OrderedExcalidrawElement,
   ): OrderedExcalidrawElement => {

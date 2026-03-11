@@ -1,8 +1,8 @@
 "use client";
 
-import { useAuth } from "@/lib/auth/context";
 import { use } from "react";
 import ProjectsList from "@/components/app/ProjectsList";
+import { useAuth } from "@/lib/auth/context";
 import { useCreateProject, useProjectsByWorkspace } from "@/lib/hooks/project";
 import {
   useAddUserToWorkspace,
@@ -55,29 +55,32 @@ export default function WorkspaceApp({ params }: WorkspaceAppProps) {
     });
   };
 
-  if(!loading && !workspaceData?.workspace) {
-    location.replace("/app")
+  if (!loading && !workspaceData?.workspace) {
+    location.replace("/app");
   }
 
   return (
     <div className="h-full p-8">
       <div className="max-w-7xl mx-auto">
-        {!loading && workspaceData && workspaceData.workspace && projectsData && (
-          <ProjectsList
-            projects={projectsData.projectsByWorkspace}
-            workspaceId={id}
-            members={workspaceData.workspace.members}
-            onCreateProject={handleCreateProject}
-            personal={false}
-            details={{
-              title: workspaceData.workspace.name,
-              description: workspaceData.workspace.description,
-            }}
-            owned={workspaceData.workspace.members.owner.id === user?.id}
-            onAddUser={handleAddUser}
-            onRemoveUser={handleRemoveUser}
-          />
-        )}
+        {!loading &&
+          workspaceData &&
+          workspaceData.workspace &&
+          projectsData && (
+            <ProjectsList
+              projects={projectsData.projectsByWorkspace}
+              workspaceId={id}
+              members={workspaceData.workspace.members}
+              onCreateProject={handleCreateProject}
+              personal={false}
+              details={{
+                title: workspaceData.workspace.name,
+                description: workspaceData.workspace.description,
+              }}
+              owned={workspaceData.workspace.members.owner.id === user?.id}
+              onAddUser={handleAddUser}
+              onRemoveUser={handleRemoveUser}
+            />
+          )}
       </div>
     </div>
   );

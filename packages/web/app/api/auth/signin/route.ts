@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
+import { type NextRequest, NextResponse } from "next/server";
 import { createPkceCookie } from "@/lib/auth/session";
 
 function generateCodeVerifier(): string {
@@ -13,7 +13,10 @@ function generateCodeChallenge(verifier: string): string {
 
 // Resolve the app's public-facing origin (avoids 0.0.0.0 inside Docker)
 function getAppOrigin(request: NextRequest): string {
-  return process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || request.nextUrl.origin;
+  return (
+    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
+    request.nextUrl.origin
+  );
 }
 
 export async function GET(request: NextRequest) {

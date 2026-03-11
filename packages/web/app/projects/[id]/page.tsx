@@ -1,8 +1,8 @@
-import { gql } from "@apollo/client";
 import type { AppState } from "@excalidraw/excalidraw/types";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import ProjectOT from "@/components/projects/ProjectOT";
+import { GET_PROJECT_NAME } from "@/lib/graphql/operations";
 import { getServerApollo } from "@/lib/serverApollo";
 
 interface ProjectPageProps {
@@ -21,13 +21,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
         name: string;
       };
     }>({
-      query: gql`
-        query GetProject($id: ID!) {
-          project(id: $id) {
-            name
-          }
-        }
-      `,
+      query: GET_PROJECT_NAME,
       variables: { id },
     });
     if (!data?.project) {
@@ -41,7 +35,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
 
   const parsedAppState: AppState = JSON.parse(appState);
   if (parsedAppState !== null) {
-    parsedAppState.collaborators = new Map()
+    parsedAppState.collaborators = new Map();
   }
 
   return <ProjectOT projectID={id} initialAppState={parsedAppState} />;
@@ -57,13 +51,7 @@ export async function generateMetadata({ params }: ProjectPageProps) {
         name: string;
       };
     }>({
-      query: gql`
-        query GetProject($id: ID!) {
-          project(id: $id) {
-            name
-          }
-        }
-      `,
+      query: GET_PROJECT_NAME,
       variables: { id },
     });
     if (!data?.project) {

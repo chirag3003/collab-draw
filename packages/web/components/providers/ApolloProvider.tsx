@@ -1,13 +1,19 @@
 "use client";
 
-import { ApolloProvider as Provider } from "@apollo/client/react";
-import { ApolloClient, HttpLink, InMemoryCache, from, split } from "@apollo/client";
+import {
+  ApolloClient,
+  from,
+  HttpLink,
+  InMemoryCache,
+  split,
+} from "@apollo/client";
 import { setContext } from "@apollo/client/link/context";
 import { GraphQLWsLink } from "@apollo/client/link/subscriptions";
+import { ApolloProvider as Provider } from "@apollo/client/react";
 import { getMainDefinition } from "@apollo/client/utilities";
 import { createClient } from "graphql-ws";
-import { useAuth } from "@/lib/auth/context";
 import { useMemo } from "react";
+import { useAuth } from "@/lib/auth/context";
 
 export default function ApolloProvider({
   children,
@@ -25,8 +31,9 @@ export default function ApolloProvider({
 
     // Create WebSocket link for subscriptions — connects directly to the API
     // (Next.js standalone doesn't proxy WebSocket upgrades through rewrites)
-    const apiWsUrl = process.env.NEXT_PUBLIC_API_WS_URL
-      || (typeof window !== "undefined"
+    const apiWsUrl =
+      process.env.NEXT_PUBLIC_API_WS_URL ||
+      (typeof window !== "undefined"
         ? `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.hostname}:5005`
         : "ws://localhost:5005");
     const wsUri = `${apiWsUrl}/query`;
@@ -40,7 +47,7 @@ export default function ApolloProvider({
           };
         },
         shouldRetry: () => true,
-        retryAttempts: 5,
+        retryAttempts: Infinity,
         keepAlive: 10000,
       }),
     );

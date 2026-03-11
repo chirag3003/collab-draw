@@ -1,11 +1,25 @@
-import { NextRequest, NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
+/**
+ * Next.js Edge Middleware that protects authenticated routes.
+ *
+ * - `/app` and `/projects` routes: redirects to the OIDC sign-in flow,
+ *   passing the original URL as `callbackUrl`.
+ * - `/api/graphql`: returns a `401 Unauthorized` JSON response.
+ *
+ * Authentication is determined by the presence of the `collab-session`
+ * cookie (set by the auth route handlers). The middleware does not
+ * validate the cookie contents — that happens in {@link getSession}.
+ */
 export function middleware(req: NextRequest) {
   const hasSession = req.cookies.has("collab-session");
   const { pathname } = req.nextUrl;
 
   // Protect /app and /projects routes — redirect to sign in if not authenticated
-  if (!hasSession && (pathname.startsWith("/app") || pathname.startsWith("/projects"))) {
+  if (
+    !hasSession &&
+    (pathname.startsWith("/app") || pathname.startsWith("/projects"))
+  ) {
     const signInUrl = new URL("/api/auth/signin", req.nextUrl.origin);
     signInUrl.searchParams.set("callbackUrl", req.nextUrl.href);
     return NextResponse.redirect(signInUrl);
@@ -19,6 +33,7 @@ export function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
+/** Routes matched by this middleware. */
 export const config = {
   matcher: ["/app(.*)", "/projects(.*)", "/api/graphql(.*)"],
 };

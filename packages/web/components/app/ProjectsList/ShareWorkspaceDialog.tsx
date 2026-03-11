@@ -1,6 +1,5 @@
 "use client";
 
-import { useAuth } from "@/lib/auth/context";
 import { Crown, Mail, Share2, UserPlus, X } from "lucide-react";
 import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -16,6 +15,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAuth } from "@/lib/auth/context";
+import { getInitials } from "@/lib/utils";
 
 interface ShareWorkspaceDialogProps {
   onAddUser?: (email: string) => void;
@@ -46,7 +47,7 @@ export default function ShareWorkspaceDialog({
     members: [],
   },
 }: ShareWorkspaceDialogProps) {
-  const { user } = useAuth();
+  const { user: sessionUser } = useAuth();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState("");
@@ -160,8 +161,7 @@ export default function ShareWorkspaceDialog({
                       alt={members.owner.fullName}
                     />
                     <AvatarFallback className="bg-primary text-primary-foreground">
-                      {/* {user.initials} */}
-                      CB
+                      {getInitials(members.owner.fullName)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
@@ -182,39 +182,41 @@ export default function ShareWorkspaceDialog({
               </div>
 
               {/* Invited Members */}
-              {members.members.map((user) => (
+              {members.members.map((member) => (
                 <div
-                  key={user.id}
+                  key={member.id}
                   className="flex items-center justify-between p-3 border border-border rounded-lg"
                 >
                   <div className="flex items-center space-x-3">
                     <Avatar className="h-10 w-10">
-                      <AvatarImage src={user.imageURL} alt={user.fullName} />
+                      <AvatarImage
+                        src={member.imageURL}
+                        alt={member.fullName}
+                      />
                       <AvatarFallback className="bg-primary text-primary-foreground">
-                        {/* {user.initials} */}
-                        CB
+                        {getInitials(member.fullName)}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-2">
                         <p className="text-sm font-medium text-foreground truncate">
-                          {user.fullName}
+                          {member.fullName}
                         </p>
                       </div>
                       <div className="flex items-center space-x-2">
                         <Mail className="h-3 w-3 text-muted-foreground" />
                         <p className="text-xs text-muted-foreground truncate">
-                          {user.email}
+                          {member.email}
                         </p>
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    {user?.id === members.owner.id && (
+                    {sessionUser?.id === members.owner.id && (
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleRemoveUser(user.id)}
+                        onClick={() => handleRemoveUser(member.id)}
                         className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
                       >
                         <X className="h-4 w-4" />

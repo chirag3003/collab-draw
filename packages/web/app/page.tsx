@@ -1,23 +1,23 @@
-import { getSession } from "@/lib/auth/session";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
+  ArrowRight,
+  Check,
+  GitBranch,
+  Globe,
+  Layers,
+  MousePointer2,
+  Palette,
+  Play,
+  Share2,
+  Shield,
+  Star,
   Users,
   Zap,
-  Shield,
-  Palette,
-  Globe,
-  GitBranch,
-  Check,
-  ArrowRight,
-  Play,
-  Star,
-  MousePointer2,
-  Layers,
-  Share2,
 } from "lucide-react";
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { getSession } from "@/lib/auth/session";
 
 export default async function Home() {
   const session = await getSession();
@@ -26,32 +26,38 @@ export default async function Home() {
     {
       icon: <Palette className="h-6 w-6" />,
       title: "Powerful Drawing Tools",
-      description: "Create beautiful diagrams, wireframes, and illustrations with our intuitive drawing interface powered by Excalidraw.",
+      description:
+        "Create beautiful diagrams, wireframes, and illustrations with our intuitive drawing interface powered by Excalidraw.",
     },
     {
       icon: <Users className="h-6 w-6" />,
       title: "Real-time Collaboration",
-      description: "Work together with your team in real-time. See changes instantly as team members draw and edit.",
+      description:
+        "Work together with your team in real-time. See changes instantly as team members draw and edit.",
     },
     {
       icon: <Layers className="h-6 w-6" />,
       title: "Organized Workspaces",
-      description: "Keep your projects organized with personal and shared workspaces. Manage permissions and access controls.",
+      description:
+        "Keep your projects organized with personal and shared workspaces. Manage permissions and access controls.",
     },
     {
       icon: <Share2 className="h-6 w-6" />,
       title: "Easy Sharing",
-      description: "Share your drawings and workspaces with team members or clients with simple invitation links.",
+      description:
+        "Share your drawings and workspaces with team members or clients with simple invitation links.",
     },
     {
       icon: <Shield className="h-6 w-6" />,
       title: "Secure & Private",
-      description: "Your data is protected with enterprise-grade security. Control who has access to your projects.",
+      description:
+        "Your data is protected with enterprise-grade security. Control who has access to your projects.",
     },
     {
       icon: <Zap className="h-6 w-6" />,
       title: "Lightning Fast",
-      description: "Built with modern technology for blazing fast performance. Auto-save ensures your work is never lost.",
+      description:
+        "Built with modern technology for blazing fast performance. Auto-save ensures your work is never lost.",
     },
   ];
 
@@ -63,12 +69,14 @@ export default async function Home() {
     },
     {
       title: "Engineering",
-      description: "Create system diagrams, flowcharts, and technical documentation",
+      description:
+        "Create system diagrams, flowcharts, and technical documentation",
       icon: <GitBranch className="h-5 w-5" />,
     },
     {
       title: "Education",
-      description: "Interactive learning with visual diagrams and illustrations",
+      description:
+        "Interactive learning with visual diagrams and illustrations",
       icon: <Globe className="h-5 w-5" />,
     },
   ];
@@ -78,14 +86,16 @@ export default async function Home() {
       name: "Sarah Chen",
       role: "Product Designer",
       company: "TechCorp",
-      content: "Collab Draw has transformed how our design team collaborates. The real-time features are incredible!",
+      content:
+        "Collab Draw has transformed how our design team collaborates. The real-time features are incredible!",
       avatar: "SC",
     },
     {
       name: "Mike Johnson",
       role: "Engineering Manager",
       company: "StartupXYZ",
-      content: "Perfect for creating system diagrams with the team. The workspace organization is exactly what we needed.",
+      content:
+        "Perfect for creating system diagrams with the team. The workspace organization is exactly what we needed.",
       avatar: "MJ",
     },
   ];
@@ -100,17 +110,28 @@ export default async function Home() {
               <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center">
                 <Palette className="h-5 w-5 text-primary-foreground" />
               </div>
-              <span className="text-xl font-bold text-foreground">Collab Draw</span>
+              <span className="text-xl font-bold text-foreground">
+                Collab Draw
+              </span>
             </div>
 
             <nav className="hidden md:flex items-center space-x-8">
-              <a href="#features" className="text-muted-foreground hover:text-foreground transition-colors">
+              <a
+                href="#features"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
                 Features
               </a>
-              <a href="#use-cases" className="text-muted-foreground hover:text-foreground transition-colors">
+              <a
+                href="#use-cases"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
                 Use Cases
               </a>
-              <a href="#testimonials" className="text-muted-foreground hover:text-foreground transition-colors">
+              <a
+                href="#testimonials"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
                 Reviews
               </a>
             </nav>
@@ -119,7 +140,9 @@ export default async function Home() {
               {!session ? (
                 <>
                   <Link href="/api/auth/signin">
-                    <Button variant="ghost" className="hover:text-white">Sign In</Button>
+                    <Button variant="ghost" className="hover:text-white">
+                      Sign In
+                    </Button>
                   </Link>
                   <Link href="/api/auth/signin">
                     <Button>Get Started</Button>
@@ -152,8 +175,9 @@ export default async function Home() {
                   in Real-time
                 </h1>
                 <p className="text-xl text-muted-foreground max-w-lg">
-                  Create beautiful diagrams, wireframes, and illustrations with your team.
-                  Powerful drawing tools meet seamless collaboration in one platform.
+                  Create beautiful diagrams, wireframes, and illustrations with
+                  your team. Powerful drawing tools meet seamless collaboration
+                  in one platform.
                 </p>
               </div>
 
@@ -202,7 +226,9 @@ export default async function Home() {
                     <div className="h-16 w-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto">
                       <Palette className="h-8 w-8 text-primary" />
                     </div>
-                    <p className="text-muted-foreground">Interactive drawing canvas</p>
+                    <p className="text-muted-foreground">
+                      Interactive drawing canvas
+                    </p>
                   </div>
                 </div>
                 <div className="absolute -top-4 -right-4 bg-green-500 text-white text-xs px-3 py-1 rounded-full">
@@ -230,20 +256,28 @@ export default async function Home() {
               Everything you need to create together
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Powerful features designed for teams that value collaboration and creativity
+              Powerful features designed for teams that value collaboration and
+              creativity
             </p>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {features.map((feature) => (
-              <Card key={feature.title} className="border-border/50 hover:border-primary/50 transition-colors">
+              <Card
+                key={feature.title}
+                className="border-border/50 hover:border-primary/50 transition-colors"
+              >
                 <CardContent className="p-6 space-y-4">
                   <div className="h-12 w-12 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
                     {feature.icon}
                   </div>
                   <div className="space-y-2">
-                    <h3 className="text-xl font-semibold text-foreground">{feature.title}</h3>
-                    <p className="text-muted-foreground">{feature.description}</p>
+                    <h3 className="text-xl font-semibold text-foreground">
+                      {feature.title}
+                    </h3>
+                    <p className="text-muted-foreground">
+                      {feature.description}
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -260,20 +294,24 @@ export default async function Home() {
               Built for every team
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              From design teams to engineering, Collab Draw adapts to your workflow
+              From design teams to engineering, Collab Draw adapts to your
+              workflow
             </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
             {useCases.map((useCase) => (
-              <div key={useCase.title} className="text-center space-y-4 group cursor-pointer">
+              <div
+                key={useCase.title}
+                className="text-center space-y-4 group cursor-pointer"
+              >
                 <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto group-hover:bg-primary/20 transition-colors">
-                  <div className="text-primary">
-                    {useCase.icon}
-                  </div>
+                  <div className="text-primary">{useCase.icon}</div>
                 </div>
                 <div className="space-y-2">
-                  <h3 className="text-xl font-semibold text-foreground">{useCase.title}</h3>
+                  <h3 className="text-xl font-semibold text-foreground">
+                    {useCase.title}
+                  </h3>
                   <p className="text-muted-foreground">{useCase.description}</p>
                 </div>
               </div>
@@ -298,13 +336,17 @@ export default async function Home() {
             {testimonials.map((testimonial) => (
               <Card key={testimonial.name} className="border-border/50">
                 <CardContent className="p-6 space-y-4">
-                  <p className="text-foreground italic">"{testimonial.content}"</p>
+                  <p className="text-foreground italic">
+                    "{testimonial.content}"
+                  </p>
                   <div className="flex items-center space-x-3">
                     <div className="h-10 w-10 bg-primary rounded-full flex items-center justify-center text-primary-foreground font-semibold">
                       {testimonial.avatar}
                     </div>
                     <div>
-                      <p className="font-semibold text-foreground">{testimonial.name}</p>
+                      <p className="font-semibold text-foreground">
+                        {testimonial.name}
+                      </p>
                       <p className="text-sm text-muted-foreground">
                         {testimonial.role} at {testimonial.company}
                       </p>
@@ -325,7 +367,8 @@ export default async function Home() {
               Ready to start creating together?
             </h2>
             <p className="text-xl text-muted-foreground">
-              Join thousands of teams already using Collab Draw to bring their ideas to life
+              Join thousands of teams already using Collab Draw to bring their
+              ideas to life
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               {!session ? (
@@ -357,7 +400,9 @@ export default async function Home() {
                 <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center">
                   <Palette className="h-5 w-5 text-primary-foreground" />
                 </div>
-                <span className="text-xl font-bold text-foreground">Collab Draw</span>
+                <span className="text-xl font-bold text-foreground">
+                  Collab Draw
+                </span>
               </div>
               <p className="text-muted-foreground">
                 The collaborative drawing platform for modern teams.
@@ -367,27 +412,72 @@ export default async function Home() {
             <div className="space-y-4">
               <h4 className="font-semibold text-foreground">Product</h4>
               <div className="space-y-2 text-muted-foreground">
-                <button type="button" className="block hover:text-foreground transition-colors text-left">Features</button>
-                <button type="button" className="block hover:text-foreground transition-colors text-left">Pricing</button>
-                <button type="button" className="block hover:text-foreground transition-colors text-left">Security</button>
+                <button
+                  type="button"
+                  className="block hover:text-foreground transition-colors text-left"
+                >
+                  Features
+                </button>
+                <button
+                  type="button"
+                  className="block hover:text-foreground transition-colors text-left"
+                >
+                  Pricing
+                </button>
+                <button
+                  type="button"
+                  className="block hover:text-foreground transition-colors text-left"
+                >
+                  Security
+                </button>
               </div>
             </div>
 
             <div className="space-y-4">
               <h4 className="font-semibold text-foreground">Company</h4>
               <div className="space-y-2 text-muted-foreground">
-                <button type="button" className="block hover:text-foreground transition-colors text-left">About</button>
-                <button type="button" className="block hover:text-foreground transition-colors text-left">Blog</button>
-                <button type="button" className="block hover:text-foreground transition-colors text-left">Careers</button>
+                <button
+                  type="button"
+                  className="block hover:text-foreground transition-colors text-left"
+                >
+                  About
+                </button>
+                <button
+                  type="button"
+                  className="block hover:text-foreground transition-colors text-left"
+                >
+                  Blog
+                </button>
+                <button
+                  type="button"
+                  className="block hover:text-foreground transition-colors text-left"
+                >
+                  Careers
+                </button>
               </div>
             </div>
 
             <div className="space-y-4">
               <h4 className="font-semibold text-foreground">Support</h4>
               <div className="space-y-2 text-muted-foreground">
-                <button type="button" className="block hover:text-foreground transition-colors text-left">Help Center</button>
-                <button type="button" className="block hover:text-foreground transition-colors text-left">Contact</button>
-                <button type="button" className="block hover:text-foreground transition-colors text-left">Status</button>
+                <button
+                  type="button"
+                  className="block hover:text-foreground transition-colors text-left"
+                >
+                  Help Center
+                </button>
+                <button
+                  type="button"
+                  className="block hover:text-foreground transition-colors text-left"
+                >
+                  Contact
+                </button>
+                <button
+                  type="button"
+                  className="block hover:text-foreground transition-colors text-left"
+                >
+                  Status
+                </button>
               </div>
             </div>
           </div>

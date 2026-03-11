@@ -1,16 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +12,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -48,7 +48,7 @@ export default function WorkspaceSettingsDialog({
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteWorkspace] = useDeleteWorkspace();
   const [updateWorkspace] = useUpdateWorkspaceMetadata();
-  
+
   const [formData, setFormData] = useState({
     name: workspace.name,
     description: workspace.description || "",
@@ -182,8 +182,9 @@ export default function WorkspaceSettingsDialog({
                 <span>Delete Workspace</span>
               </div>
               <p className="text-sm text-muted-foreground">
-                Once you delete a workspace, there is no going back. All projects
-                within this workspace will also be deleted. Please be certain.
+                Once you delete a workspace, there is no going back. All
+                projects within this workspace will also be deleted. Please be
+                certain.
               </p>
               <Button
                 variant="destructive"
@@ -205,8 +206,9 @@ export default function WorkspaceSettingsDialog({
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This will permanently delete the
-              workspace <span className="font-semibold">"{workspace.name}"</span>{" "}
-              and all projects within it. All data will be removed from our servers.
+              workspace{" "}
+              <span className="font-semibold">"{workspace.name}"</span> and all
+              projects within it. All data will be removed from our servers.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -1,48 +1,37 @@
-import { gql } from "@apollo/client";
 import { useMutation, useSubscription } from "@apollo/client/react";
+import {
+  CURSORS_SUBSCRIPTION,
+  PRESENCE_SUBSCRIPTION,
+  UPDATE_CURSOR,
+} from "@/lib/graphql/operations";
+import type { CursorEvent, PresenceUser } from "@/lib/types";
 
-// --- Cursor Hooks ---
+// ─── Cursor Hooks ────────────────────────────────────────────────────────────
 
+/**
+ * Mutation hook for sending the current user's cursor position to a project.
+ *
+ * @returns A mutation tuple for updating the cursor position.
+ */
 export const useUpdateCursor = () => {
-  const MUTATION = gql`
-    mutation UpdateCursor($projectID: ID!, $cursor: CursorInput!) {
-      updateCursor(projectID: $projectID, cursor: $cursor)
-    }
-  `;
-  return useMutation<{ updateCursor: boolean }>(MUTATION);
+  return useMutation<{ updateCursor: boolean }>(UPDATE_CURSOR);
 };
 
-type CursorEvent = {
-  userID: string;
-  userName: string;
-  color: string;
-  x: number;
-  y: number;
-  selectedElementIds: string[];
-  timestamp: string;
-};
-
+/**
+ * Subscribes to real-time cursor movements from other collaborators.
+ * Invokes the `onCursor` callback each time a remote cursor event is received.
+ *
+ * @param projectID - The project to subscribe to cursor events for.
+ * @param skip - Whether to skip the subscription.
+ * @param onCursor - Optional callback invoked with each incoming cursor event.
+ * @returns Apollo `useSubscription` result.
+ */
 export const useCursorsSubscription = (
   projectID: string,
   skip: boolean,
   onCursor?: (cursor: CursorEvent) => void,
 ) => {
-  const SUBSCRIPTION = gql`
-    subscription Cursors($projectID: ID!) {
-      cursors(projectID: $projectID) {
-        userID
-        userName
-        color
-        x
-        y
-        selectedElementIds
-        timestamp
-      }
-    }
-  `;
-  return useSubscription<{
-    cursors: CursorEvent;
-  }>(SUBSCRIPTION, {
+  return useSubscription<{ cursors: CursorEvent }>(CURSORS_SUBSCRIPTION, {
     variables: { projectID },
     skip,
     shouldResubscribe: true,
@@ -54,29 +43,17 @@ export const useCursorsSubscription = (
   });
 };
 
-// --- Presence Hooks ---
+// ─── Presence Hooks ──────────────────────────────────────────────────────────
 
+/**
+ * Subscribes to presence updates for a project (who is active or idle).
+ *
+ * @param projectID - The project to subscribe to presence for.
+ * @param skip - Whether to skip the subscription.
+ * @returns Apollo `useSubscription` result with the list of present users.
+ */
 export const usePresenceSubscription = (projectID: string, skip: boolean) => {
-  const SUBSCRIPTION = gql`
-    subscription Presence($projectID: ID!) {
-      presence(projectID: $projectID) {
-        userID
-        userName
-        email
-        status
-        joinedAt
-      }
-    }
-  `;
-  return useSubscription<{
-    presence: Array<{
-      userID: string;
-      userName: string;
-      email: string;
-      status: "ACTIVE" | "IDLE";
-      joinedAt: string;
-    }>;
-  }>(SUBSCRIPTION, {
+  return useSubscription<{ presence: PresenceUser[] }>(PRESENCE_SUBSCRIPTION, {
     variables: { projectID },
     skip,
     shouldResubscribe: true,

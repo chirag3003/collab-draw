@@ -21,7 +21,8 @@ export const metadata: Metadata = {
     default: "Collab Draw - Real-time Collaborative Drawing & Diagramming",
     template: "%s | Collab Draw",
   },
-  description: "Create beautiful diagrams, wireframes, and illustrations with your team in real-time. Powered by Excalidraw with smart conflict resolution and workspace management.",
+  description:
+    "Create beautiful diagrams, wireframes, and illustrations with your team in real-time. Powered by Excalidraw with smart conflict resolution and workspace management.",
   keywords: [
     "collaborative drawing",
     "real-time collaboration",
@@ -37,14 +38,17 @@ export const metadata: Metadata = {
   authors: [{ name: "Chirag Bhalotia", url: "https://chirag.codes" }],
   creator: "Chirag Bhalotia",
   publisher: "Chirag Bhalotia",
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+  ),
   openGraph: {
     type: "website",
     locale: "en_US",
     url: "/",
     siteName: "Collab Draw",
     title: "Collab Draw - Real-time Collaborative Drawing",
-    description: "Create beautiful diagrams, wireframes, and illustrations with your team in real-time.",
+    description:
+      "Create beautiful diagrams, wireframes, and illustrations with your team in real-time.",
     images: [
       {
         url: "/favicon.png",
@@ -57,7 +61,8 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Collab Draw - Real-time Collaborative Drawing",
-    description: "Create beautiful diagrams, wireframes, and illustrations with your team in real-time.",
+    description:
+      "Create beautiful diagrams, wireframes, and illustrations with your team in real-time.",
     images: ["/favicon.png"],
   },
   icons: {
@@ -87,7 +92,13 @@ export default async function RootLayout({
   const session = await getSession();
 
   return (
-    <AuthProvider session={session ? { user: session.user, accessToken: session.accessToken } : null}>
+    <AuthProvider
+      session={
+        session
+          ? { user: session.user, accessToken: session.accessToken }
+          : null
+      }
+    >
       <ApolloProvider>
         <html lang="en">
           <body

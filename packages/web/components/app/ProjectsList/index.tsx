@@ -9,12 +9,12 @@ import {
   CardFooter,
   CardHeader,
 } from "@/components/ui/card";
+import { useAuth } from "@/lib/auth/context";
 import { cn } from "@/lib/utils";
 import CreateProjectDialog from "./CreateProjectDialog";
-import ShareWorkspaceDialog from "./ShareWorkspaceDialog";
 import ProjectSettingsDialog from "./ProjectSettingsDialog";
+import ShareWorkspaceDialog from "./ShareWorkspaceDialog";
 import WorkspaceSettingsDialog from "./WorkspaceSettingsDialog";
-import { useAuth } from "@/lib/auth/context";
 
 interface Project {
   id: string;
@@ -99,7 +99,8 @@ export default function ProjectsList({
       <div className="header flex justify-between items-start mb-8">
         <div>
           <h1 className="text-3xl font-bold text-foreground mb-2">
-            {details?.title || (user ? `Welcome back, ${user.name?.split(" ")[0]}` : "")}
+            {details?.title ||
+              (user ? `Welcome back, ${user.name?.split(" ")[0]}` : "")}
           </h1>
           <p className="text-muted-foreground">
             {details?.description ||

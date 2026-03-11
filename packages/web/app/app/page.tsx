@@ -1,8 +1,8 @@
 "use client";
 
-import { useAuth } from "@/lib/auth/context";
 import { useEffect } from "react";
 import ProjectsList from "@/components/app/ProjectsList";
+import { useAuth } from "@/lib/auth/context";
 import { useCreateProject, usePersonalProjects } from "@/lib/hooks/project";
 
 export default function App() {
@@ -37,7 +37,7 @@ export default function App() {
           <ProjectsList
             projects={data.projectsPersonalByUser}
             onCreateProject={handleCreateProject}
-            personal={false}
+            personal={true}
           />
         )}
       </div>

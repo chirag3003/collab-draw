@@ -1,6 +1,7 @@
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { diffElements, buildElementMap, type ElementOp } from "./diffElements";
+import { buildElementMap, diffElements } from "./diffElements";
 
+/** A single operation produced by the client and sent to the server. */
 export interface OperationInput {
   clientSeq: number;
   type: "ADD" | "UPDATE" | "DELETE";
@@ -10,6 +11,7 @@ export interface OperationInput {
   data?: string;
 }
 
+/** A remote operation received via subscription or catch-up query. */
 export interface RemoteOperation {
   opID: string;
   seq: number;
@@ -23,6 +25,7 @@ export interface RemoteOperation {
   timestamp: string;
 }
 
+/** Server response after applying a batch of operations. */
 export interface ApplyOpsResult {
   ack: boolean;
   serverSeq: number;
@@ -33,9 +36,18 @@ export interface ApplyOpsResult {
   }> | null;
 }
 
-export type SendOpsCallback = (ops: OperationInput[]) => Promise<ApplyOpsResult>;
-export type UpdateSceneCallback = (elements: OrderedExcalidrawElement[]) => void;
-export type FetchOpsSinceCallback = (sinceSeq: number) => Promise<RemoteOperation[]>;
+/** Callback type: sends a batch of local ops to the server and returns the result. */
+export type SendOpsCallback = (
+  ops: OperationInput[],
+) => Promise<ApplyOpsResult>;
+/** Callback type: applies a new element array to the Excalidraw scene. */
+export type UpdateSceneCallback = (
+  elements: OrderedExcalidrawElement[],
+) => void;
+/** Callback type: fetches remote ops after a given server sequence (for catch-up). */
+export type FetchOpsSinceCallback = (
+  sinceSeq: number,
+) => Promise<RemoteOperation[]>;
 
 /**
  * Client-side OT state machine managing:
@@ -72,14 +84,17 @@ export class OTClient {
     this.flushIntervalMs = flushIntervalMs;
   }
 
+  /** Sets the WebSocket socket ID assigned by the subscription. */
   setSocketID(id: string) {
     this.socketID = id;
   }
 
+  /** Returns the current socket ID. */
   getSocketID(): string {
     return this.socketID;
   }
 
+  /** Returns the last acknowledged server sequence number. */
   getServerSeq(): number {
     return this.serverSeq;
   }
@@ -87,7 +102,10 @@ export class OTClient {
   /**
    * Initialize with the current scene elements (from initial project load).
    */
-  initializeFromScene(elements: readonly OrderedExcalidrawElement[], headSeq: number = 0) {
+  initializeFromScene(
+    elements: readonly OrderedExcalidrawElement[],
+    headSeq: number = 0,
+  ) {
     this.elementMap = buildElementMap(elements);
     this.serverSeq = headSeq;
     this.pendingOps = [];
@@ -139,7 +157,11 @@ export class OTClient {
    * Flush local buffer: if no pending ops, send buffer to server.
    */
   private async flush() {
-    if (this.isFlushing || this.pendingOps.length > 0 || this.localBuffer.length === 0) {
+    if (
+      this.isFlushing ||
+      this.pendingOps.length > 0 ||
+      this.localBuffer.length === 0
+    ) {
       // If there are pending ops, wait for ack before sending more
       if (this.localBuffer.length > 0 && this.pendingOps.length > 0) {
         this.scheduleFlush();
@@ -209,15 +231,18 @@ export class OTClient {
             }
           }
           break;
-        case "DELETE":
-          if (this.elementMap.has(op.elementID)) {
-            const existing = this.elementMap.get(op.elementID)!;
-            // Apply soft-delete
-            const deleted = { ...existing, isDeleted: true } as OrderedExcalidrawElement;
+        case "DELETE": {
+          const existing = this.elementMap.get(op.elementID);
+          if (existing) {
+            const deleted = {
+              ...existing,
+              isDeleted: true,
+            } as OrderedExcalidrawElement;
             this.elementMap.set(op.elementID, deleted);
             sceneChanged = true;
           }
           break;
+        }
       }
     }
 
@@ -248,20 +273,26 @@ export class OTClient {
             case "UPDATE":
               if (op.data) {
                 try {
-                  const element = JSON.parse(op.data) as OrderedExcalidrawElement;
+                  const element = JSON.parse(
+                    op.data,
+                  ) as OrderedExcalidrawElement;
                   this.elementMap.set(op.elementID, element);
                 } catch (e) {
                   console.error("OT: Failed to parse catch-up op data:", e);
                 }
               }
               break;
-            case "DELETE":
-              if (this.elementMap.has(op.elementID)) {
-                const existing = this.elementMap.get(op.elementID)!;
-                const deleted = { ...existing, isDeleted: true } as OrderedExcalidrawElement;
+            case "DELETE": {
+              const existing = this.elementMap.get(op.elementID);
+              if (existing) {
+                const deleted = {
+                  ...existing,
+                  isDeleted: true,
+                } as OrderedExcalidrawElement;
                 this.elementMap.set(op.elementID, deleted);
               }
               break;
+            }
           }
         }
 

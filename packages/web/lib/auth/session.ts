@@ -1,9 +1,12 @@
-import { cookies } from "next/headers";
 import crypto from "node:crypto";
+import { cookies } from "next/headers";
 
+/** Name of the HTTP-only cookie storing the encrypted session. */
 const COOKIE_NAME = "collab-session";
+/** Name of the HTTP-only cookie storing PKCE state during the OIDC flow. */
 const PKCE_COOKIE_NAME = "auth-pkce";
 
+/** The authenticated user as stored in the session cookie. */
 export interface SessionUser {
   id: string;
   name: string;
@@ -11,6 +14,7 @@ export interface SessionUser {
   image?: string | null;
 }
 
+/** The full session payload persisted in the encrypted cookie. */
 export interface Session {
   accessToken: string;
   refreshToken: string;
@@ -18,12 +22,22 @@ export interface Session {
   user: SessionUser;
 }
 
+/**
+ * Derives a 256-bit AES key from the `AUTH_SECRET` environment variable.
+ * @throws If `AUTH_SECRET` is not set.
+ */
 function getKey(): Buffer {
   const secret = process.env.AUTH_SECRET;
   if (!secret) throw new Error("AUTH_SECRET environment variable is required");
   return crypto.createHash("sha256").update(secret).digest();
 }
 
+/**
+ * Encrypts a payload using AES-256-GCM.
+ *
+ * @param payload - Arbitrary JSON-serializable value.
+ * @returns A base64-encoded string containing `iv + authTag + ciphertext`.
+ */
 export function encrypt(payload: unknown): string {
   const key = getKey();
   const iv = crypto.randomBytes(12);
@@ -38,6 +52,13 @@ export function encrypt(payload: unknown): string {
   return Buffer.concat([iv, authTag, encrypted]).toString("base64");
 }
 
+/**
+ * Decrypts a base64-encoded AES-256-GCM payload back to its original value.
+ *
+ * @typeParam T - The expected shape of the decrypted payload.
+ * @param encoded - The base64-encoded ciphertext.
+ * @returns The decrypted and parsed value.
+ */
 export function decrypt<T = unknown>(encoded: string): T {
   const key = getKey();
   const buf = Buffer.from(encoded, "base64");
@@ -53,12 +74,19 @@ export function decrypt<T = unknown>(encoded: string): T {
   return JSON.parse(decrypted.toString("utf8")) as T;
 }
 
+/** Builds the Keycloak token endpoint URL from environment variables. */
 const keycloakTokenUrl = () => {
   const base = process.env.KEYCLOAK_URL!;
   const realm = process.env.KEYCLOAK_REALM!;
   return `${base}/realms/${realm}/protocol/openid-connect/token`;
 };
 
+/**
+ * Attempts to refresh an expired session using the stored refresh token.
+ *
+ * @param session - The current (expired) session.
+ * @returns A new session with fresh tokens, or `null` if refresh fails.
+ */
 async function refreshSession(session: Session): Promise<Session | null> {
   try {
     const res = await fetch(keycloakTokenUrl(), {
@@ -86,9 +114,18 @@ async function refreshSession(session: Session): Promise<Session | null> {
   }
 }
 
-// Module-level promise cache to prevent concurrent refresh races
+// Module-level promise cache to prevent concurrent refresh races.
 let refreshPromise: Promise<Session | null> | null = null;
 
+/**
+ * Reads and validates the session from the encrypted cookie.
+ *
+ * If the access token is within 60 seconds of expiry, a token refresh
+ * is attempted transparently. Concurrent calls are deduplicated via a
+ * module-level promise cache.
+ *
+ * @returns The current session, or `null` if unauthenticated / expired.
+ */
 export async function getSession(): Promise<Session | null> {
   try {
     const cookieStore = await cookies();
@@ -110,7 +147,11 @@ export async function getSession(): Promise<Session | null> {
       if (refreshed) {
         // Set the refreshed cookie
         const cookieStore = await cookies();
-        cookieStore.set(COOKIE_NAME, encrypt(refreshed), sessionCookieOptions());
+        cookieStore.set(
+          COOKIE_NAME,
+          encrypt(refreshed),
+          sessionCookieOptions(),
+        );
         return refreshed;
       }
       // Refresh failed — return null (session expired)
@@ -123,6 +164,7 @@ export async function getSession(): Promise<Session | null> {
   }
 }
 
+/** Returns default options for the session cookie. */
 function sessionCookieOptions() {
   return {
     httpOnly: true,
@@ -133,6 +175,11 @@ function sessionCookieOptions() {
   };
 }
 
+/**
+ * Creates a `Set-Cookie`-ready object for persisting the session.
+ *
+ * @param session - The session to encrypt and store.
+ */
 export function createSessionCookie(session: Session) {
   return {
     name: COOKIE_NAME,
@@ -141,6 +188,7 @@ export function createSessionCookie(session: Session) {
   };
 }
 
+/** Creates a `Set-Cookie`-ready object that clears the session cookie. */
 export function clearSessionCookie() {
   return {
     name: COOKIE_NAME,
@@ -155,12 +203,18 @@ export function clearSessionCookie() {
   };
 }
 
+/** PKCE challenge data stored during the OIDC authorization flow. */
 export interface PkceData {
   state: string;
   codeVerifier: string;
   callbackUrl: string;
 }
 
+/**
+ * Creates a short-lived cookie to store PKCE state during the login flow.
+ *
+ * @param data - The PKCE challenge data (state, code verifier, callback URL).
+ */
 export function createPkceCookie(data: PkceData) {
   return {
     name: PKCE_COOKIE_NAME,
@@ -175,6 +229,7 @@ export function createPkceCookie(data: PkceData) {
   };
 }
 
+/** Creates a `Set-Cookie`-ready object that clears the PKCE cookie. */
 export function clearPkceCookie() {
   return {
     name: PKCE_COOKIE_NAME,
@@ -189,6 +244,11 @@ export function clearPkceCookie() {
   };
 }
 
+/**
+ * Reads and decrypts the PKCE cookie.
+ *
+ * @returns The PKCE data, or `null` if the cookie is missing or invalid.
+ */
 export async function getPkceData(): Promise<PkceData | null> {
   try {
     const cookieStore = await cookies();
