@@ -101,7 +101,9 @@ export function useHistoryMode({
 
   /**
    * Close history mode and revert the canvas to the saved state that was
-   * captured when the first preview occurred.
+   * captured when the first preview occurred. Re-syncs the OTClient from
+   * the restored scene and catches up on any ops that arrived during
+   * history mode to prevent elementMap / scene drift.
    */
   const handleHistoryClose = useCallback(() => {
     if (savedElementsRef.current && excalidrawApi) {
@@ -111,13 +113,23 @@ export function useHistoryMode({
         ) as OrderedExcalidrawElement[];
         isRemoteUpdateRef.current = true;
         excalidrawApi.updateScene({ elements: parsed });
+
+        // Re-sync the OTClient so its elementMap matches the restored scene.
+        // Then catch up to apply any remote ops that arrived while in history mode.
+        if (otClientRef.current) {
+          otClientRef.current.initializeFromScene(
+            parsed,
+            otClientRef.current.getServerSeq(),
+          );
+          void otClientRef.current.catchUp();
+        }
       } catch (e) {
         console.error("Failed to restore saved state:", e);
       }
     }
     savedElementsRef.current = null;
     setHistoryMode(false);
-  }, [excalidrawApi, isRemoteUpdateRef]);
+  }, [excalidrawApi, otClientRef, isRemoteUpdateRef]);
 
   return {
     historyMode,

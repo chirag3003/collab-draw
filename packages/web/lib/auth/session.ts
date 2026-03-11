@@ -145,13 +145,21 @@ export async function getSession(): Promise<Session | null> {
       }
       const refreshed = await refreshPromise;
       if (refreshed) {
-        // Set the refreshed cookie
-        const cookieStore = await cookies();
-        cookieStore.set(
-          COOKIE_NAME,
-          encrypt(refreshed),
-          sessionCookieOptions(),
-        );
+        // Persist the refreshed cookie. This only works in Route Handlers
+        // and Server Actions — in RSC render context cookies().set() throws.
+        // We catch and log so the caller still gets a valid session for this
+        // request even if the cookie couldn't be persisted.
+        try {
+          const cookieStore = await cookies();
+          cookieStore.set(
+            COOKIE_NAME,
+            encrypt(refreshed),
+            sessionCookieOptions(),
+          );
+        } catch {
+          // RSC context — cookie will be refreshed again on the next request
+          // that runs in a Route Handler or Server Action.
+        }
         return refreshed;
       }
       // Refresh failed — return null (session expired)

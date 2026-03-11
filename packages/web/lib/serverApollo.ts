@@ -23,7 +23,7 @@ export const getServerApollo = async () => {
       : "http://localhost:5005/query",
     credentials: "include",
     headers: {
-      Authorization: `Bearer ${token}`,
+      ...(token && { Authorization: `Bearer ${token}` }),
     },
   });
 

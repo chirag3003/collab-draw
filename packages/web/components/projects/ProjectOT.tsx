@@ -136,7 +136,7 @@ export default function ProjectOT({
         onPointerUpdate={
           historyMode || !isRealtimeReady ? undefined : handlePointerUpdate
         }
-        viewModeEnabled={!historyMode && !isRealtimeReady}
+        viewModeEnabled={historyMode || !isRealtimeReady}
         UIOptions={{
           canvasActions: {
             toggleTheme: true,

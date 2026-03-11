@@ -47,6 +47,12 @@ interface UseOTSyncResult {
 }
 
 /**
+ * Duration (ms) to wait for the subscription to recover from an error
+ * before redirecting the user. Prevents redirect on brief network blips.
+ */
+const SUBSCRIPTION_ERROR_GRACE_MS = 10_000;
+
+/**
  * Encapsulates the full OT synchronisation lifecycle:
  *
  * 1. Fetches the initial project data and hydrates Excalidraw.
@@ -75,6 +81,15 @@ export function useOTSync({
   const initialElementsAppliedRef = useRef<string | null>(null);
   const hasCaughtUpRef = useRef(false);
 
+  // When the subscription delivers a socketID before initial hydration,
+  // we defer catch-up until hydration completes.
+  const needsCatchUpRef = useRef(false);
+
+  // Timer for graceful redirect on sustained subscription failure.
+  const errorRedirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
   // ── Reset state when projectID changes ─────────────────────────────────
 
   useEffect(() => {
@@ -83,6 +98,7 @@ export function useOTSync({
     setIsRealtimeReady(false);
     initialElementsAppliedRef.current = null;
     hasCaughtUpRef.current = false;
+    needsCatchUpRef.current = false;
   }, [projectID]);
 
   // ── OT callback factories ─────────────────────────────────────────────
@@ -219,6 +235,14 @@ export function useOTSync({
       if (!initialSet) {
         setInitialSet(true);
       }
+
+      // If the subscription already delivered a socketID while we were
+      // waiting for initial data, run catch-up now.
+      if (needsCatchUpRef.current && otClientRef.current) {
+        needsCatchUpRef.current = false;
+        hasCaughtUpRef.current = true;
+        void otClientRef.current.catchUp();
+      }
     } catch (error) {
       console.error("Failed to parse initial elements:", error);
       setInitialSet(true);
@@ -232,14 +256,37 @@ export function useOTSync({
 
     const { ops, socketID: subSocketID } = opsData.projectOps;
 
-    // First message: capture socketID
+    // First message (or reconnect): capture socketID
     if (!otClientRef.current.getSocketID() && subSocketID) {
       otClientRef.current.setSocketID(subSocketID);
       setIsRealtimeReady(true);
       setConnectionStatus("connected");
-      if (!hasCaughtUpRef.current) {
+
+      // Reset hasCaughtUp on every new socketID — this handles both
+      // initial connect and reconnects after a WebSocket drop.
+      hasCaughtUpRef.current = false;
+
+      if (initialSet) {
+        // Scene is hydrated — catch up immediately.
         hasCaughtUpRef.current = true;
         void otClientRef.current.catchUp();
+      } else {
+        // Scene not yet hydrated — defer catch-up until hydration completes.
+        needsCatchUpRef.current = true;
+      }
+      return;
+    }
+
+    // Reconnection: new socketID received while we already had one
+    if (subSocketID && subSocketID !== otClientRef.current.getSocketID()) {
+      otClientRef.current.setSocketID(subSocketID);
+      hasCaughtUpRef.current = false;
+
+      if (initialSet) {
+        hasCaughtUpRef.current = true;
+        void otClientRef.current.catchUp();
+      } else {
+        needsCatchUpRef.current = true;
       }
       return;
     }
@@ -253,7 +300,7 @@ export function useOTSync({
       const sourceSocketID = ops[0]?.socketID || "";
       otClientRef.current.handleRemoteOps(remoteOps, sourceSocketID);
     }
-  }, [opsData]);
+  }, [opsData, initialSet]);
 
   // ── Monitor connection status ─────────────────────────────────────────
 
@@ -269,13 +316,39 @@ export function useOTSync({
     }
   }, [opsError, opsLoading, opsData]);
 
-  // ── Redirect on subscription error (no access) ────────────────────────
+  // ── Graceful redirect on sustained subscription error ─────────────────
+  //
+  // Instead of immediately booting the user on any subscription error,
+  // start a grace timer. If the error persists for the full grace period,
+  // redirect. If the subscription recovers, cancel the timer.
 
   useEffect(() => {
     if (!opsLoading && opsError) {
-      location.replace("/app");
+      // Start the grace timer if not already running
+      if (!errorRedirectTimerRef.current) {
+        errorRedirectTimerRef.current = setTimeout(() => {
+          errorRedirectTimerRef.current = null;
+          location.replace("/app");
+        }, SUBSCRIPTION_ERROR_GRACE_MS);
+      }
+    } else {
+      // Subscription recovered or is loading — cancel any pending redirect
+      if (errorRedirectTimerRef.current) {
+        clearTimeout(errorRedirectTimerRef.current);
+        errorRedirectTimerRef.current = null;
+      }
     }
   }, [opsLoading, opsError]);
+
+  // Clean up redirect timer on unmount
+  useEffect(() => {
+    return () => {
+      if (errorRedirectTimerRef.current) {
+        clearTimeout(errorRedirectTimerRef.current);
+        errorRedirectTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // ── Local change handler ──────────────────────────────────────────────
 

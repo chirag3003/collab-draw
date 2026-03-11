@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect } from "react";
 import ProjectsList from "@/components/app/ProjectsList";
 import { useAuth } from "@/lib/auth/context";
 import { useCreateProject, useProjectsByWorkspace } from "@/lib/hooks/project";
@@ -55,9 +55,12 @@ export default function WorkspaceApp({ params }: WorkspaceAppProps) {
     });
   };
 
-  if (!loading && !workspaceData?.workspace) {
-    location.replace("/app");
-  }
+  // Redirect if workspace doesn't exist (after loading completes)
+  useEffect(() => {
+    if (!loading && !workspaceData?.workspace) {
+      location.replace("/app");
+    }
+  }, [loading, workspaceData]);
 
   return (
     <div className="h-full p-8">
