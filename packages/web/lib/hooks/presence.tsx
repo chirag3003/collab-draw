@@ -1,4 +1,5 @@
 import { useMutation, useSubscription } from "@apollo/client/react";
+import { useRef } from "react";
 import {
   CURSORS_SUBSCRIPTION,
   PRESENCE_SUBSCRIPTION,
@@ -21,6 +22,9 @@ export const useUpdateCursor = () => {
  * Subscribes to real-time cursor movements from other collaborators.
  * Invokes the `onCursor` callback each time a remote cursor event is received.
  *
+ * The callback is stored in a ref so that identity changes to `onCursor`
+ * do not trigger resubscription — only `projectID` and `skip` matter.
+ *
  * @param projectID - The project to subscribe to cursor events for.
  * @param skip - Whether to skip the subscription.
  * @param onCursor - Optional callback invoked with each incoming cursor event.
@@ -31,14 +35,16 @@ export const useCursorsSubscription = (
   skip: boolean,
   onCursor?: (cursor: CursorEvent) => void,
 ) => {
+  const onCursorRef = useRef(onCursor);
+  onCursorRef.current = onCursor;
+
   return useSubscription<{ cursors: CursorEvent }>(CURSORS_SUBSCRIPTION, {
     variables: { projectID },
     skip,
-    shouldResubscribe: true,
     onData: ({ data }) => {
       const cursor = data.data?.cursors;
       if (!cursor) return;
-      onCursor?.(cursor);
+      onCursorRef.current?.(cursor);
     },
   });
 };
@@ -56,6 +62,5 @@ export const usePresenceSubscription = (projectID: string, skip: boolean) => {
   return useSubscription<{ presence: PresenceUser[] }>(PRESENCE_SUBSCRIPTION, {
     variables: { projectID },
     skip,
-    shouldResubscribe: true,
   });
 };

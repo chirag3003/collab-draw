@@ -1,7 +1,10 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useProjectSnapshot } from "@/lib/hooks/history";
+
+/** Debounce delay (ms) for snapshot fetches while dragging the slider. */
+const SLIDER_DEBOUNCE_MS = 300;
 
 interface HistoryTimelineProps {
   projectID: string;
@@ -22,15 +25,23 @@ export default function HistoryTimeline({
   const [previewTimestamp, setPreviewTimestamp] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [fetchSnapshot] = useProjectSnapshot();
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleSliderChange = useCallback(
-    async (value: number) => {
-      setSliderValue(value);
-      if (value === currentSeq) {
-        setPreviewTimestamp(null);
-        return;
+  // Clean up debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
       }
+    };
+  }, []);
 
+  /**
+   * Fetches a snapshot for the given sequence number.
+   * Called directly (for restore) or via debounce (for slider drag).
+   */
+  const doFetchSnapshot = useCallback(
+    async (value: number) => {
       setIsLoading(true);
       try {
         const { data } = await fetchSnapshot({
@@ -46,7 +57,37 @@ export default function HistoryTimeline({
         setIsLoading(false);
       }
     },
-    [projectID, currentSeq, fetchSnapshot, onPreview],
+    [projectID, fetchSnapshot, onPreview],
+  );
+
+  /**
+   * Updates slider value immediately for responsiveness, but debounces
+   * the actual network fetch to avoid firing on every pixel of drag.
+   */
+  const handleSliderChange = useCallback(
+    (value: number) => {
+      setSliderValue(value);
+
+      if (value === currentSeq) {
+        setPreviewTimestamp(null);
+        // Cancel any pending fetch
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
+          debounceTimerRef.current = null;
+        }
+        return;
+      }
+
+      // Debounce the actual fetch
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      debounceTimerRef.current = setTimeout(() => {
+        debounceTimerRef.current = null;
+        void doFetchSnapshot(value);
+      }, SLIDER_DEBOUNCE_MS);
+    },
+    [currentSeq, doFetchSnapshot],
   );
 
   const handleRestore = useCallback(async () => {

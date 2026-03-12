@@ -40,8 +40,8 @@ interface UseOTSyncResult {
   initialSet: boolean;
   /** Ref to the OTClient instance (needed by history mode for serverSeq). */
   otClientRef: React.RefObject<OTClient | null>;
-  /** Stable ref flag — set to `true` before calling `updateScene`, checked + reset in `onChange`. */
-  isRemoteUpdateRef: React.RefObject<boolean>;
+  /** Ref counter — incremented before calling `updateScene`, decremented in `onChange`. Only process local changes when 0. */
+  isRemoteUpdateRef: React.RefObject<number>;
   /** Excalidraw `onChange` handler that diffs local changes through OT. */
   onChange: (elements: readonly OrderedExcalidrawElement[]) => void;
 }
@@ -73,7 +73,7 @@ export function useOTSync({
   const apolloClient = useApolloClient();
 
   const [initialSet, setInitialSet] = useState(false);
-  const isRemoteUpdateRef = useRef(false);
+  const isRemoteUpdateRef = useRef(0);
   const otClientRef = useRef<OTClient | null>(null);
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatusType>("syncing");
@@ -134,7 +134,7 @@ export function useOTSync({
 
       const updateScene = (elements: OrderedExcalidrawElement[]) => {
         if (api) {
-          isRemoteUpdateRef.current = true;
+          isRemoteUpdateRef.current++;
           api.updateScene({ elements });
         }
       };
@@ -158,43 +158,42 @@ export function useOTSync({
     [apolloClient, projectID],
   );
 
-  // ── Create the OTClient ────────────────────────────────────────────────
+  // ── Create / re-create the OTClient ─────────────────────────────────────
+  //
+  // Merged into a single effect to prevent double-creation on initial mount.
+  // When `excalidrawApi` or `buildOTCallbacks` changes, the cleanup destroys
+  // the old client (if any) and the new run creates a fresh one, preserving
+  // socketID, serverSeq, and the current scene.
 
   useEffect(() => {
-    if (otClientRef.current) return;
+    const savedSocketID = otClientRef.current?.getSocketID() ?? "";
+    const savedServerSeq = otClientRef.current?.getServerSeq() ?? 0;
 
-    const { sendOps, updateScene, fetchOpsSince } =
-      buildOTCallbacks(excalidrawApi);
-    otClientRef.current = new OTClient(sendOps, updateScene, fetchOpsSince);
-
-    return () => {
-      otClientRef.current?.destroy();
+    // Destroy existing client if present
+    if (otClientRef.current) {
+      otClientRef.current.destroy();
       otClientRef.current = null;
-    };
-  }, [excalidrawApi, buildOTCallbacks]);
-
-  // ── Re-create when excalidrawApi changes (preserve socketID/seq) ──────
-
-  useEffect(() => {
-    if (!otClientRef.current || !excalidrawApi) return;
-
-    const currentOT = otClientRef.current;
-    const savedSocketID = currentOT.getSocketID();
-    const savedServerSeq = currentOT.getServerSeq();
+    }
 
     const { sendOps, updateScene, fetchOpsSince } =
       buildOTCallbacks(excalidrawApi);
-
-    currentOT.destroy();
     const newOT = new OTClient(sendOps, updateScene, fetchOpsSince);
-    newOT.setSocketID(savedSocketID);
 
-    if (initialSet) {
+    // Restore state from previous client (no-ops if both are defaults)
+    if (savedSocketID) {
+      newOT.setSocketID(savedSocketID);
+    }
+    if (initialSet && excalidrawApi) {
       const elements = excalidrawApi.getSceneElements();
       newOT.initializeFromScene(elements, savedServerSeq);
     }
 
     otClientRef.current = newOT;
+
+    return () => {
+      otClientRef.current?.destroy();
+      otClientRef.current = null;
+    };
   }, [excalidrawApi, initialSet, buildOTCallbacks]);
 
   // ── Fetch initial project data ─────────────────────────────────────────
@@ -224,7 +223,7 @@ export function useOTSync({
 
       const elements = JSON.parse(toParse) as OrderedExcalidrawElement[];
 
-      isRemoteUpdateRef.current = true;
+      isRemoteUpdateRef.current++;
       excalidrawApi.updateScene({ elements });
 
       if (otClientRef.current) {
@@ -354,8 +353,8 @@ export function useOTSync({
 
   const onChange = useCallback(
     (elements: readonly OrderedExcalidrawElement[]) => {
-      if (isRemoteUpdateRef.current) {
-        isRemoteUpdateRef.current = false;
+      if (isRemoteUpdateRef.current > 0) {
+        isRemoteUpdateRef.current--;
         return;
       }
 

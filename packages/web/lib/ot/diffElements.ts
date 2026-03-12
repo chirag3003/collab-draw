@@ -77,6 +77,9 @@ export function diffElements(
  * Builds an element map from an element array, keyed by element ID.
  * Each element is deep-cloned to prevent mutation of the map's entries.
  *
+ * Used for initial scene load and remote updates where deep isolation
+ * is desired.
+ *
  * @param elements - The source elements to index.
  * @returns A new `Map<id, element>` with cloned values.
  */
@@ -98,4 +101,24 @@ export function buildElementMap(
   };
 
   return new Map(elements.map((el) => [el.id, cloneElement(el)]));
+}
+
+/**
+ * Builds an element map using shallow copies instead of deep clones.
+ *
+ * This is optimised for the hot path (`handleLocalChange`), where
+ * Excalidraw guarantees that mutated elements are new objects with a
+ * bumped `version`. Shallow copies are sufficient to snapshot the
+ * current state for diffing, and avoid the cost of `structuredClone`
+ * on every keystroke/draw.
+ *
+ * @param elements - The source elements to index.
+ * @returns A new `Map<id, element>` with shallow-copied values.
+ */
+export function buildElementMapShallow(
+  elements: readonly OrderedExcalidrawElement[],
+): Map<string, OrderedExcalidrawElement> {
+  return new Map(
+    elements.map((el) => [el.id, { ...el } as OrderedExcalidrawElement]),
+  );
 }

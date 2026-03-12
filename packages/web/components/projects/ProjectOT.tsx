@@ -6,7 +6,7 @@ import type {
 } from "@excalidraw/excalidraw/types";
 import Cookies from "js-cookie";
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth/context";
 import {
   useCursorsSubscription,
@@ -36,7 +36,7 @@ const Excalidraw = dynamic(
 
 interface ProjectOTProps {
   projectID: string;
-  initialAppState: AppState;
+  initialAppState: AppState | null;
 }
 
 /**
@@ -95,11 +95,30 @@ export default function ProjectOT({
     handleHistoryClose,
   } = useHistoryMode({ excalidrawApi, otClientRef, isRemoteUpdateRef });
 
-  // ── Cookie persistence for appState ────────────────────────────────────
+  // ── Cookie persistence for appState (throttled to ~once/2s) ─────────────
 
-  function setAppState(appState: AppState) {
-    Cookies.set(`appState_${projectID}`, JSON.stringify(appState));
-  }
+  /** Interval (ms) between cookie writes for appState. */
+  const APP_STATE_THROTTLE_MS = 2_000;
+  const appStateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestAppStateRef = useRef<AppState | null>(null);
+
+  const setAppState = useCallback(
+    (appState: AppState) => {
+      latestAppStateRef.current = appState;
+      if (appStateTimerRef.current) return; // already scheduled
+
+      appStateTimerRef.current = setTimeout(() => {
+        appStateTimerRef.current = null;
+        if (latestAppStateRef.current) {
+          Cookies.set(
+            `appState_${projectID}`,
+            JSON.stringify(latestAppStateRef.current),
+          );
+        }
+      }, APP_STATE_THROTTLE_MS);
+    },
+    [projectID],
+  );
 
   // ── Render ─────────────────────────────────────────────────────────────
 
@@ -122,7 +141,7 @@ export default function ProjectOT({
 
       <Excalidraw
         initialData={{
-          appState: initialAppState,
+          appState: initialAppState ?? undefined,
         }}
         excalidrawAPI={(api) => {
           setExcalidrawApi(api);

@@ -8,7 +8,7 @@ import type { OTClient } from "@/lib/ot/OTClient";
 interface UseHistoryModeParams {
   excalidrawApi: ExcalidrawImperativeAPI | null;
   otClientRef: React.RefObject<OTClient | null>;
-  isRemoteUpdateRef: React.MutableRefObject<boolean>;
+  isRemoteUpdateRef: React.MutableRefObject<number>;
 }
 
 interface UseHistoryModeResult {
@@ -63,7 +63,7 @@ export function useHistoryMode({
         const parsed = JSON.parse(
           elements || "[]",
         ) as OrderedExcalidrawElement[];
-        isRemoteUpdateRef.current = true;
+        isRemoteUpdateRef.current++;
         excalidrawApi.updateScene({ elements: parsed });
       } catch (e) {
         console.error("Failed to preview history:", e);
@@ -83,7 +83,7 @@ export function useHistoryMode({
         const parsed = JSON.parse(
           elements || "[]",
         ) as OrderedExcalidrawElement[];
-        isRemoteUpdateRef.current = true;
+        isRemoteUpdateRef.current++;
         excalidrawApi.updateScene({ elements: parsed });
         // Re-initialize OT client with restored state
         otClientRef.current.initializeFromScene(
@@ -111,7 +111,7 @@ export function useHistoryMode({
         const parsed = JSON.parse(
           savedElementsRef.current,
         ) as OrderedExcalidrawElement[];
-        isRemoteUpdateRef.current = true;
+        isRemoteUpdateRef.current++;
         excalidrawApi.updateScene({ elements: parsed });
 
         // Re-sync the OTClient so its elementMap matches the restored scene.

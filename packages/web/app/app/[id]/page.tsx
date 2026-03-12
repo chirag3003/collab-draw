@@ -65,6 +65,16 @@ export default function WorkspaceApp({ params }: WorkspaceAppProps) {
   return (
     <div className="h-full p-8">
       <div className="max-w-7xl mx-auto">
+        {loading && (
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4" />
+              <p className="text-sm text-muted-foreground">
+                Loading workspace...
+              </p>
+            </div>
+          </div>
+        )}
         {!loading &&
           workspaceData &&
           workspaceData.workspace &&

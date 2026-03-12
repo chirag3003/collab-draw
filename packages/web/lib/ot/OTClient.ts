@@ -1,5 +1,9 @@
 import type { OrderedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { buildElementMap, diffElements } from "./diffElements";
+import {
+  buildElementMap,
+  buildElementMapShallow,
+  diffElements,
+} from "./diffElements";
 
 /** A single operation produced by the client and sent to the server. */
 export interface OperationInput {
@@ -55,16 +59,21 @@ export type FetchOpsSinceCallback = (
  * - pendingOps: sent to server, awaiting ack
  * - localBuffer: generated locally, not yet sent
  * - elementMap: last known state for diffing
+ * - elementOrder: tracks z-ordering of elements
  */
 export class OTClient {
   private serverSeq: number = 0;
   private pendingOps: OperationInput[] = [];
   private localBuffer: OperationInput[] = [];
   private elementMap: Map<string, OrderedExcalidrawElement> = new Map();
+  /** Tracks element z-ordering. IDs in this array match keys in elementMap. */
+  private elementOrder: string[] = [];
   private clientSeqCounter: number = 0;
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private socketID: string = "";
   private isFlushing: boolean = false;
+  /** Set to true by destroy() — async methods check this to bail out. */
+  private destroyed: boolean = false;
 
   private sendOps: SendOpsCallback;
   private updateScene: UpdateSceneCallback;
@@ -101,12 +110,14 @@ export class OTClient {
 
   /**
    * Initialize with the current scene elements (from initial project load).
+   * Captures both the element map and z-ordering.
    */
   initializeFromScene(
     elements: readonly OrderedExcalidrawElement[],
     headSeq: number = 0,
   ) {
     this.elementMap = buildElementMap(elements);
+    this.elementOrder = elements.map((el) => el.id);
     this.serverSeq = headSeq;
     this.pendingOps = [];
     this.localBuffer = [];
@@ -121,8 +132,9 @@ export class OTClient {
     const ops = diffElements(this.elementMap, elements);
     if (ops.length === 0) return;
 
-    // Update element map to reflect new state
-    this.elementMap = buildElementMap(elements);
+    // Update element map (shallow — optimised for hot path) and z-ordering
+    this.elementMap = buildElementMapShallow(elements);
+    this.elementOrder = elements.map((el) => el.id);
 
     // Convert to OperationInput and add to local buffer
     for (const op of ops) {
@@ -155,8 +167,11 @@ export class OTClient {
 
   /**
    * Flush local buffer: if no pending ops, send buffer to server.
+   * Bails out early if the client has been destroyed.
    */
   private async flush() {
+    if (this.destroyed) return;
+
     if (
       this.isFlushing ||
       this.pendingOps.length > 0 ||
@@ -175,6 +190,10 @@ export class OTClient {
 
     try {
       const result = await this.sendOps(this.pendingOps);
+
+      // Check again after await — client may have been destroyed mid-flight
+      if (this.destroyed) return;
+
       this.serverSeq = result.serverSeq;
       this.pendingOps = [];
 
@@ -190,6 +209,8 @@ export class OTClient {
         this.scheduleFlush();
       }
     } catch (err) {
+      if (this.destroyed) return;
+
       console.error("OT: Failed to send ops:", err);
       // Put pending ops back in buffer for retry
       this.localBuffer = [...this.pendingOps, ...this.localBuffer];
@@ -202,7 +223,8 @@ export class OTClient {
 
   /**
    * Handle remote ops received via subscription.
-   * Apply them incrementally to the element map and update the scene.
+   * Apply them incrementally to the element map, maintain z-ordering,
+   * and update the scene.
    */
   handleRemoteOps(ops: RemoteOperation[], fromSocketID: string) {
     if (ops.length === 0) return;
@@ -224,7 +246,12 @@ export class OTClient {
           if (op.data) {
             try {
               const element = JSON.parse(op.data) as OrderedExcalidrawElement;
+              const isNew = !this.elementMap.has(op.elementID);
               this.elementMap.set(op.elementID, element);
+              // New elements go at the end of the z-order
+              if (isNew) {
+                this.elementOrder.push(op.elementID);
+              }
               sceneChanged = true;
             } catch (e) {
               console.error("OT: Failed to parse remote op data:", e);
@@ -247,18 +274,37 @@ export class OTClient {
     }
 
     if (sceneChanged) {
-      // Reconstruct elements array from map
-      const elements = Array.from(this.elementMap.values());
-      this.updateScene(elements);
+      this.updateScene(this.getOrderedElements());
     }
   }
 
   /**
+   * Reconstructs the elements array from the element map, preserving
+   * z-ordering tracked by `elementOrder`.
+   */
+  private getOrderedElements(): OrderedExcalidrawElement[] {
+    const elements: OrderedExcalidrawElement[] = [];
+    for (const id of this.elementOrder) {
+      const el = this.elementMap.get(id);
+      if (el) {
+        elements.push(el);
+      }
+    }
+    return elements;
+  }
+
+  /**
    * Catch up with missed ops after reconnect.
+   * Bails out early if the client has been destroyed.
    */
   async catchUp() {
+    if (this.destroyed) return;
+
     try {
       const ops = await this.fetchOpsSince(this.serverSeq);
+
+      if (this.destroyed) return;
+
       if (ops.length > 0) {
         // Apply all catch-up ops
         for (const op of ops) {
@@ -276,7 +322,11 @@ export class OTClient {
                   const element = JSON.parse(
                     op.data,
                   ) as OrderedExcalidrawElement;
+                  const isNew = !this.elementMap.has(op.elementID);
                   this.elementMap.set(op.elementID, element);
+                  if (isNew) {
+                    this.elementOrder.push(op.elementID);
+                  }
                 } catch (e) {
                   console.error("OT: Failed to parse catch-up op data:", e);
                 }
@@ -296,18 +346,23 @@ export class OTClient {
           }
         }
 
-        const elements = Array.from(this.elementMap.values());
-        this.updateScene(elements);
+        if (!this.destroyed) {
+          this.updateScene(this.getOrderedElements());
+        }
       }
     } catch (err) {
-      console.error("OT: Catch-up failed:", err);
+      if (!this.destroyed) {
+        console.error("OT: Catch-up failed:", err);
+      }
     }
   }
 
   /**
-   * Clean up timers.
+   * Clean up timers and mark the client as destroyed so in-flight
+   * async operations bail out.
    */
   destroy() {
+    this.destroyed = true;
     if (this.flushTimer !== null) {
       clearTimeout(this.flushTimer);
       this.flushTimer = null;
