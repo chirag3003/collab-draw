@@ -106,21 +106,3 @@ export interface RemoteOp {
   data: string | null;
   timestamp: string;
 }
-
-// ─── History Types ───────────────────────────────────────────────────────────
-
-/** A snapshot of a project at a specific server sequence. */
-export interface ProjectSnapshot {
-  elements: string;
-  seq: number;
-  timestamp: string;
-}
-
-/** A single operation entry from the project history. */
-export interface HistoryOp {
-  opID: string;
-  seq: number;
-  type: "ADD" | "UPDATE" | "DELETE";
-  elementID: string;
-  timestamp: string;
-}

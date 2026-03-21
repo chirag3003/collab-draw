@@ -292,34 +292,3 @@ export const PRESENCE_SUBSCRIPTION = gql`
     }
   }
 `;
-
-// ─── History ─────────────────────────────────────────────────────────────────
-
-/** Fetches the operation history for a project within a sequence range. */
-export const PROJECT_HISTORY = gql`
-  query ProjectHistory($projectID: ID!, $fromSeq: Int!, $toSeq: Int!) {
-    projectHistory(projectID: $projectID, fromSeq: $fromSeq, toSeq: $toSeq) {
-      opID
-      seq
-      clientSeq
-      socketID
-      type
-      elementID
-      elementVer
-      baseSeq
-      data
-      timestamp
-    }
-  }
-`;
-
-/** Fetches a reconstructed snapshot of a project at a specific sequence number. */
-export const PROJECT_SNAPSHOT_AT = gql`
-  query ProjectSnapshotAt($projectID: ID!, $seq: Int!) {
-    projectSnapshotAt(projectID: $projectID, seq: $seq) {
-      elements
-      seq
-      timestamp
-    }
-  }
-`;

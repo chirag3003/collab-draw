@@ -13,10 +13,8 @@ import {
   usePresenceSubscription,
 } from "@/lib/hooks/presence";
 import { useCursorManager } from "@/lib/hooks/useCursorManager";
-import { useHistoryMode } from "@/lib/hooks/useHistoryMode";
 import { useOTSync } from "@/lib/hooks/useOTSync";
 import ConnectionStatus from "./ConnectionStatus";
-import HistoryTimeline from "./HistoryTimeline";
 
 // Dynamically import Excalidraw to avoid SSR issues
 const Excalidraw = dynamic(
@@ -45,7 +43,6 @@ interface ProjectOTProps {
  * Composes three domain hooks:
  * - {@link useOTSync} — OT lifecycle, subscriptions, connection status
  * - {@link useCursorManager} — outgoing cursor throttle + incoming cursor lerp
- * - {@link useHistoryMode} — history preview / restore / close
  *
  * This component itself contains only the Excalidraw render, a thin
  * `onChange` bridge, presence wiring, and layout chrome.
@@ -60,13 +57,10 @@ export default function ProjectOT({
 
   // ── OT synchronisation ─────────────────────────────────────────────────
 
-  const {
-    connectionStatus,
-    isRealtimeReady,
-    otClientRef,
-    isRemoteUpdateRef,
-    onChange,
-  } = useOTSync({ projectID, excalidrawApi });
+  const { connectionStatus, isRealtimeReady, onChange } = useOTSync({
+    projectID,
+    excalidrawApi,
+  });
 
   // ── Cursor management ──────────────────────────────────────────────────
 
@@ -84,16 +78,6 @@ export default function ProjectOT({
     !excalidrawApi,
   );
   const presenceUsers = presenceData?.presence ?? [];
-
-  // ── History mode ───────────────────────────────────────────────────────
-
-  const {
-    historyMode,
-    toggleHistoryMode,
-    handleHistoryPreview,
-    handleHistoryRestore,
-    handleHistoryClose,
-  } = useHistoryMode({ excalidrawApi, otClientRef, isRemoteUpdateRef });
 
   // ── Cookie persistence for appState (throttled to ~once/2s) ─────────────
 
@@ -129,16 +113,6 @@ export default function ProjectOT({
         presenceUsers={presenceUsers}
       />
 
-      {/* History toggle button */}
-      <button
-        type="button"
-        onClick={toggleHistoryMode}
-        className="absolute top-4 left-4 z-50 bg-white/90 backdrop-blur px-3 py-2 rounded-lg shadow-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
-        title="View history"
-      >
-        History
-      </button>
-
       <Excalidraw
         initialData={{
           appState: initialAppState ?? undefined,
@@ -147,15 +121,11 @@ export default function ProjectOT({
           setExcalidrawApi(api);
         }}
         onChange={(elements, appState) => {
-          if (!historyMode) {
-            onChange(elements);
-            setAppState(appState);
-          }
+          onChange(elements);
+          setAppState(appState);
         }}
-        onPointerUpdate={
-          historyMode || !isRealtimeReady ? undefined : handlePointerUpdate
-        }
-        viewModeEnabled={historyMode || !isRealtimeReady}
+        onPointerUpdate={!isRealtimeReady ? undefined : handlePointerUpdate}
+        viewModeEnabled={!isRealtimeReady}
         UIOptions={{
           canvasActions: {
             toggleTheme: true,
@@ -167,22 +137,12 @@ export default function ProjectOT({
         }}
       />
 
-      {!historyMode && !isRealtimeReady && (
+      {!isRealtimeReady && (
         <div className="absolute inset-0 z-40 bg-white/35 backdrop-blur-[1px] flex items-center justify-center pointer-events-none">
           <div className="px-3 py-2 rounded-md bg-white/90 border border-gray-200 text-sm font-medium text-gray-700 shadow">
             Connecting realtime sync...
           </div>
         </div>
-      )}
-
-      {historyMode && (
-        <HistoryTimeline
-          projectID={projectID}
-          currentSeq={otClientRef.current?.getServerSeq() || 0}
-          onPreview={handleHistoryPreview}
-          onRestore={handleHistoryRestore}
-          onClose={handleHistoryClose}
-        />
       )}
     </div>
   );

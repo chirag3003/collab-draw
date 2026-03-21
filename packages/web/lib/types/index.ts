@@ -1,10 +1,8 @@
 export type {
   ApplyOpsResult,
   CursorEvent,
-  HistoryOp,
   PresenceUser,
   ProjectDetail,
-  ProjectSnapshot,
   ProjectSummary,
   RejectedOp,
   RemoteOp,
